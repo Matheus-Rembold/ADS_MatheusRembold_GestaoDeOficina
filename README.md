@@ -33,6 +33,7 @@ negócio testável sem precisar abrir a interface gráfica.
 # 1. Criar e ativar o ambiente virtual
 python -m venv venv
 venv\Scripts\activate        # Windows
+venv\Scripts\Activate.ps1
 
 # 2. Instalar dependências
 pip install -r requirements.txt
