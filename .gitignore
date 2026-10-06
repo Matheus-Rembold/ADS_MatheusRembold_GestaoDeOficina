@@ -1,0 +1,23 @@
+# Ambiente virtual
+venv/
+.venv/
+
+# Variáveis de ambiente com credenciais reais
+.env
+
+# Cache e bytecode Python
+__pycache__/
+*.pyc
+
+# Build do PyInstaller
+build/
+dist/
+*.spec
+
+# Configurações de IDE
+.vscode/
+.idea/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db

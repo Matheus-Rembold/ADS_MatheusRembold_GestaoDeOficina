@@ -1,0 +1,6 @@
+PyQt6==6.7.1
+SQLAlchemy==2.0.35
+psycopg2-binary==2.9.11
+requests==2.32.3
+python-dotenv==1.0.1
+pyinstaller>=6.15.0
