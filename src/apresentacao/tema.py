@@ -70,6 +70,16 @@ def estilo_global() -> str:
     }}
     QLineEdit:focus {{ border: 1px solid {LARANJA}; }}
 
+    QComboBox {{
+        background: {SUPERFICIE}; border: 1px solid {BORDA}; border-radius: 6px;
+        padding: 7px 10px;
+    }}
+    QComboBox:focus {{ border: 1px solid {LARANJA}; }}
+    QComboBox QAbstractItemView {{
+        background: {SUPERFICIE}; border: 1px solid {BORDA};
+        selection-background-color: {LARANJA_SUAVE}; selection-color: {TEXTO}; outline: 0;
+    }}
+
     QPushButton {{
         background: {SUPERFICIE}; border: 1px solid {BORDA}; border-radius: 6px;
         padding: 8px 18px; font-weight: 600;

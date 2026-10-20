@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import String, Integer, DateTime, CheckConstraint, func
+from sqlalchemy import String, Integer, DateTime, CheckConstraint, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.config.database import Base
@@ -40,3 +40,10 @@ class Produto(Base):
 
     def __repr__(self) -> str:
         return f"<Produto id={self.id_produto} nome={self.nome!r}>"
+
+
+# Nome do produto único SEM diferenciar maiúsculas/minúsculas
+# ("Filtro de Óleo" e "filtro de óleo" são o mesmo produto). É um índice
+# único sobre LOWER(nome); no PostgreSQL ele é criado pelo script
+# alterar_produto_nome_unico.sql (o banco já existente não é recriado).
+Index("uq_produto_nome", func.lower(Produto.nome), unique=True)

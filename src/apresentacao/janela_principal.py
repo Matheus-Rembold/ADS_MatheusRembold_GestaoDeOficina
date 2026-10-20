@@ -23,13 +23,13 @@ from PyQt6.QtWidgets import (
 )
 
 from src.apresentacao.telas.clientes_view import ClientesView
+from src.apresentacao.telas.produtos_view import ProdutosView
+from src.apresentacao.telas.veiculos_view import VeiculosView
 from src.apresentacao.tema import LARGURA_BARRA_LATERAL
 
 # Ordem de entrega do cronograma (DVP, seção 3.1). Sai desta lista à medida
 # que cada módulo ganha sua tela.
 MODULOS_EM_BREVE: List[str] = [
-    "Veículos",
-    "Produtos",
     "Estoque",
     "Ordens de Serviço",
     "Agendamentos",
@@ -73,6 +73,10 @@ class JanelaPrincipal(QMainWindow):
 
         self.tela_clientes = ClientesView()
         self.adicionar_modulo("Clientes", self.tela_clientes)
+        self.tela_veiculos = VeiculosView()
+        self.adicionar_modulo("Veículos", self.tela_veiculos)
+        self.tela_produtos = ProdutosView()
+        self.adicionar_modulo("Produtos", self.tela_produtos)
         # Rótulo de seção + módulos futuros, todos desabilitados (não clicáveis).
         for texto in ["EM BREVE", *MODULOS_EM_BREVE]:
             item = QListWidgetItem(texto)

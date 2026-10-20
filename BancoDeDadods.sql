@@ -42,6 +42,7 @@ CREATE TABLE produto (
     quantidade_minima INT NOT NULL DEFAULT 0 CHECK (quantidade_minima >= 0),
     criado_em         TIMESTAMP NOT NULL DEFAULT NOW()
 );
+CREATE UNIQUE INDEX uq_produto_nome ON produto (LOWER(nome));
 
 -- ------------------------------------------------------------
 -- 4. NOTA_FISCAL

@@ -36,3 +36,20 @@ def cpf_valido(digitos: str) -> bool:
 def formatar_cpf(digitos: str) -> str:
     """'52998224725' -> '529.982.247-25' (formato usado no banco, VARCHAR(14))."""
     return f"{digitos[:3]}.{digitos[3:6]}.{digitos[6:9]}-{digitos[9:]}"
+
+
+# ----------------------------------------------------------------------
+# Placa de veículo (RF02)
+# ----------------------------------------------------------------------
+_PLACA_ANTIGA = re.compile(r"^[A-Z]{3}\d{4}$")           # ABC1234
+_PLACA_MERCOSUL = re.compile(r"^[A-Z]{3}\d[A-Z]\d{2}$")  # ABC1D23
+
+
+def normalizar_placa(texto: str | None) -> str:
+    """'abc-1d23' -> 'ABC1D23' (sem hífen/espaços, maiúscula; formato do banco)."""
+    return re.sub(r"[^A-Za-z0-9]", "", texto or "").upper()
+
+
+def placa_valida(placa: str) -> bool:
+    """Aceita o padrão antigo (ABC1234) e o Mercosul (ABC1D23). Recebe placa já normalizada."""
+    return bool(_PLACA_ANTIGA.match(placa) or _PLACA_MERCOSUL.match(placa))
