@@ -7,7 +7,7 @@ perder o que já digitou (Nielsen: ajudar a reconhecer, diagnosticar e se
 recuperar de erros).
 
 A quantidade em estoque NÃO é editável aqui: na edição ela aparece só como
-informação, porque quem a altera é a entrada de estoque (RF09).
+informação, porque quem a altera é a movimentação de estoque (RF09).
 """
 from __future__ import annotations
 
@@ -86,7 +86,7 @@ class ProdutoDialog(QDialog):
 
         dica = QLabel(
             "* campo obrigatório. A quantidade em estoque é atualizada pelas "
-            "entradas de estoque; a quantidade mínima define o alerta de estoque baixo."
+            "movimentações de estoque; a quantidade mínima define o alerta de estoque baixo."
         )
         dica.setObjectName("subtitulo")
         dica.setWordWrap(True)

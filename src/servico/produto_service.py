@@ -4,10 +4,10 @@ Serviço de Produto (RF03 - Gerenciar Produtos).
 Regras deste módulo:
 - o nome do produto é único, sem diferenciar maiúsculas/minúsculas;
 - a QUANTIDADE EM ESTOQUE não é digitada aqui: um produto novo nasce com 0
-  e só o RF09 (entrada de estoque) a altera. Por isso cadastrar/atualizar
+  e só o RF09 (movimentações de estoque) a altera. Por isso cadastrar/atualizar
   não recebem "quantidade" e o atualizar nunca a modifica;
 - quantidade_minima é editável e alimenta o alerta de estoque baixo (HU09);
-- produto já usado em OS ou com entradas de estoque não pode ser excluído
+- produto já usado em OS ou com movimentações de estoque não pode ser excluído
   (mesma política de preservar o histórico dos outros módulos).
 """
 from __future__ import annotations
@@ -88,9 +88,9 @@ class ProdutoService:
             raise OperacaoNaoPermitidaError(
                 "Não é possível excluir: o produto já foi utilizado em ordens de serviço."
             )
-        if self._repo.possui_entradas(id_produto):
+        if self._repo.possui_movimentacoes(id_produto):
             raise OperacaoNaoPermitidaError(
-                "Não é possível excluir: o produto possui entradas de estoque registradas, "
+                "Não é possível excluir: o produto possui movimentações de estoque registradas, "
                 "que fazem parte do histórico da oficina."
             )
 

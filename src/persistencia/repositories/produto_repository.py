@@ -11,7 +11,7 @@ from typing import List, Optional
 from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from src.persistencia.models import EntradaEstoque, OsProduto, Produto
+from src.persistencia.models import MovimentacaoEstoque, OsProduto, Produto
 
 
 class ProdutoRepository:
@@ -75,7 +75,7 @@ class ProdutoRepository:
         stmt = select(exists().where(OsProduto.id_produto == id_produto))
         return bool(self._session.scalar(stmt))
 
-    def possui_entradas(self, id_produto: int) -> bool:
-        """True se o produto tem alguma entrada de estoque (RF09) registrada."""
-        stmt = select(exists().where(EntradaEstoque.id_produto == id_produto))
+    def possui_movimentacoes(self, id_produto: int) -> bool:
+        """True se o produto tem alguma movimentação de estoque (RF09) registrada."""
+        stmt = select(exists().where(MovimentacaoEstoque.id_produto == id_produto))
         return bool(self._session.scalar(stmt))

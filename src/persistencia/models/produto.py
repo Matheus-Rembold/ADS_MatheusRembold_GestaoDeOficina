@@ -29,9 +29,9 @@ class Produto(Base):
     quantidade_minima: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    # --- Lado "um" dos relacionamentos com OsProduto/EntradaEstoque ---
+    # --- Lado "um" dos relacionamentos com OsProduto/MovimentacaoEstoque ---
     os_produtos: Mapped[List["OsProduto"]] = relationship(back_populates="produto")
-    entradas_estoque: Mapped[List["EntradaEstoque"]] = relationship(back_populates="produto")
+    movimentacoes_estoque: Mapped[List["MovimentacaoEstoque"]] = relationship(back_populates="produto")
 
     @property
     def estoque_baixo(self) -> bool:
