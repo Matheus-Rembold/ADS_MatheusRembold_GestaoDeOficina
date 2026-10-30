@@ -25,7 +25,7 @@ tests/               # Testes automatizados (espelha a estrutura de src/)
 **Regra de dependência:** cada camada só pode chamar a camada imediatamente
 abaixo dela. `apresentacao` nunca acessa `persistencia` diretamente, por
 exemplo — sempre passa por `controle` e `servico`. Isso mantém a lógica de
-negócio testável sem precisar abrir a interface gráfica.
+negócio testável sem precisar abrir a interface gráfica..
 
 ## Como rodar o ambiente
 
