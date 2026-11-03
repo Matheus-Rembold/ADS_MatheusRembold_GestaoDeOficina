@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.apresentacao.componentes import erro_inesperado
+from src.apresentacao.componentes import erro_inesperado, formatar_moeda  # noqa: F401 (reexporta)
 from src.apresentacao.telas.movimentacao_dialog import MovimentacaoDialog
 from src.apresentacao.tema import ERRO, SUCESSO
 from src.controle.movimentacao_estoque_controller import (
@@ -46,14 +46,6 @@ COLUNAS = ["Data", "Produto", "Tipo", "Quantidade", "Valor", "Fornecedor", "Obse
 COL_DATA, COL_PRODUTO, COL_TIPO, COL_QTD, COL_VALOR, COL_FORNECEDOR, COL_OBS = range(7)
 
 PERIODOS = ["Todo o período", "Este mês", "Mês passado", "Últimos 30 dias"]
-
-
-def formatar_moeda(valor: Optional[Decimal]) -> str:
-    """Decimal('1250.9') -> 'R$ 1.250,90' (formato brasileiro)."""
-    if valor is None:
-        return "—"
-    texto = f"{valor:,.2f}"  # 1,250.90
-    return "R$ " + texto.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
 def intervalo_do_periodo(periodo: str, hoje: Optional[date] = None) -> Tuple[Optional[date], Optional[date]]:

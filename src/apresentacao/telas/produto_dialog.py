@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from src.apresentacao.componentes import formatar_moeda
 from src.controle.produto_controller import (
     ErroDeNegocio,
     ProdutoController,
@@ -83,6 +84,9 @@ class ProdutoDialog(QDialog):
         formulario.addRow("Qtd. mínima", self._minimo)
         if produto is not None:
             formulario.addRow("Em estoque", QLabel(str(produto.quantidade)))
+            # Só leitura: quem atualiza é o registro de uma compra no Estoque (RF09).
+            valor = "—" if produto.valor_unitario is None else formatar_moeda(produto.valor_unitario)
+            formulario.addRow("Último valor pago", QLabel(valor + " (por unidade; vem da última compra)"))
 
         dica = QLabel(
             "* campo obrigatório. A quantidade em estoque é atualizada pelas "

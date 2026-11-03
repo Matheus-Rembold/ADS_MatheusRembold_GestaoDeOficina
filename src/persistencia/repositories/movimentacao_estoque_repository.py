@@ -37,6 +37,22 @@ class MovimentacaoEstoqueRepository:
     def buscar_por_id(self, id_movimentacao: int) -> Optional[MovimentacaoEstoque]:
         return self._session.get(MovimentacaoEstoque, id_movimentacao)
 
+    def ultima_compra(self, id_produto: int) -> Optional[MovimentacaoEstoque]:
+        """Compra mais recente do produto (data e, em empate, a registrada por último)."""
+        stmt = (
+            select(MovimentacaoEstoque)
+            .where(
+                MovimentacaoEstoque.id_produto == id_produto,
+                MovimentacaoEstoque.tipo == TipoMovimentacao.COMPRA,
+            )
+            .order_by(
+                MovimentacaoEstoque.data_movimentacao.desc(),
+                MovimentacaoEstoque.id_movimentacao_estoque.desc(),
+            )
+            .limit(1)
+        )
+        return self._session.scalars(stmt).first()
+
     def buscar_produto_com_trava(self, id_produto: int) -> Optional[Produto]:
         """
         Busca o produto TRAVANDO a linha (SELECT ... FOR UPDATE) até o fim da

@@ -30,7 +30,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.apresentacao.componentes import aviso, confirmar, erro_inesperado
+from src.apresentacao.componentes import aviso, confirmar, erro_inesperado, formatar_moeda
 from src.apresentacao.telas.produto_dialog import ProdutoDialog
 from src.apresentacao.tema import ERRO
 from src.controle.produto_controller import (
@@ -40,8 +40,8 @@ from src.controle.produto_controller import (
     ProdutoDTO,
 )
 
-COLUNAS = ["Nome", "Categoria", "Prateleira", "Estoque", "Mínimo", "Situação"]
-COL_NOME, COL_CATEGORIA, COL_PRATELEIRA, COL_ESTOQUE, COL_MINIMO, COL_SITUACAO = range(6)
+COLUNAS = ["Nome", "Categoria", "Prateleira", "Estoque", "Mínimo", "Último valor pago", "Situação"]
+COL_NOME, COL_CATEGORIA, COL_PRATELEIRA, COL_ESTOQUE, COL_MINIMO, COL_VALOR, COL_SITUACAO = range(7)
 
 
 class ProdutosView(QWidget):
@@ -103,6 +103,7 @@ class ProdutosView(QWidget):
         cab.setSectionResizeMode(COL_PRATELEIRA, QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(COL_ESTOQUE, QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(COL_MINIMO, QHeaderView.ResizeMode.ResizeToContents)
+        cab.setSectionResizeMode(COL_VALOR, QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(COL_SITUACAO, QHeaderView.ResizeMode.ResizeToContents)
 
         self._lbl_vazio = QLabel("Nenhum produto encontrado.")
@@ -173,6 +174,7 @@ class ProdutosView(QWidget):
                 p.prateleira or "—",
                 str(p.quantidade),
                 str(p.quantidade_minima),
+                formatar_moeda(p.valor_unitario),
                 "Estoque baixo" if p.estoque_baixo else "OK",
             ]
             for coluna, valor in enumerate(valores):
@@ -181,6 +183,8 @@ class ProdutosView(QWidget):
                     item.setData(Qt.ItemDataRole.UserRole, p.id_produto)
                 if coluna in (COL_ESTOQUE, COL_MINIMO):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                elif coluna == COL_VALOR:
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 if p.estoque_baixo and coluna in (COL_ESTOQUE, COL_SITUACAO):
                     # O texto "Estoque baixo" já informa; cor e negrito só reforçam.
                     item.setForeground(QBrush(QColor(ERRO)))

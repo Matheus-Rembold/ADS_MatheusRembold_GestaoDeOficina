@@ -6,9 +6,10 @@ quantidade_minima é o que alimenta o alerta de estoque baixo (HU09).
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import List, Optional
 
-from sqlalchemy import String, Integer, DateTime, CheckConstraint, Index, func
+from sqlalchemy import String, Integer, Numeric, DateTime, CheckConstraint, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.config.database import Base
@@ -19,6 +20,7 @@ class Produto(Base):
     __table_args__ = (
         CheckConstraint("quantidade >= 0", name="ck_produto_quantidade_positiva"),
         CheckConstraint("quantidade_minima >= 0", name="ck_produto_quantidade_minima_positiva"),
+        CheckConstraint("valor_unitario IS NULL OR valor_unitario >= 0", name="ck_produto_valor_unitario"),
     )
 
     id_produto: Mapped[int] = mapped_column(primary_key=True)
@@ -27,6 +29,9 @@ class Produto(Base):
     prateleira: Mapped[Optional[str]] = mapped_column(String(50))
     quantidade: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     quantidade_minima: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Valor pago por UNIDADE na compra mais recente (valor da compra ÷ quantidade).
+    # Quem atualiza é o RF09, ao registrar uma compra; vazio se nunca foi comprado.
+    valor_unitario: Mapped[Optional[Decimal]] = mapped_column(Numeric(12, 4))
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # --- Lado "um" dos relacionamentos com OsProduto/MovimentacaoEstoque ---

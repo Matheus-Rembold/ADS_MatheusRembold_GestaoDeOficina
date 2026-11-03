@@ -64,11 +64,12 @@ def estilo_global() -> str:
     }}
     QListWidget#menu::item:disabled {{ color: #5F666D; }}
 
-    QLineEdit {{
+    QLineEdit, QPlainTextEdit {{
         background: {SUPERFICIE}; border: 1px solid {BORDA}; border-radius: 6px;
         padding: 7px 10px; selection-background-color: {LARANJA};
     }}
-    QLineEdit:focus {{ border: 1px solid {LARANJA}; }}
+    QLineEdit:focus, QPlainTextEdit:focus {{ border: 1px solid {LARANJA}; }}
+    QLineEdit:disabled, QPlainTextEdit:disabled {{ color: #868E96; background: #F1F3F5; }}
 
     QComboBox {{
         background: {SUPERFICIE}; border: 1px solid {BORDA}; border-radius: 6px;
@@ -91,6 +92,7 @@ def estilo_global() -> str:
     }}
     QPushButton#primario:hover {{ background: {LARANJA_ESCURO}; }}
     QPushButton#perigo {{ color: {ERRO}; }}
+    QPushButton#perigo:disabled {{ color: #A0A6AE; }}
     QPushButton#perigo:hover:!disabled {{ background: {ERRO_FUNDO}; }}
 
     QTableWidget {{

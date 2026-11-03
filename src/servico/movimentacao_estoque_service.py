@@ -12,7 +12,8 @@ Regras deste módulo:
 - registrar a movimentação e atualizar a quantidade do produto acontecem na
   MESMA transação: ou grava os dois ou nenhum;
 - o saldo do produto nunca pode ficar negativo;
-- o produto precisa já existir (RF03): o estoque nunca cria produto.
+- o produto precisa já existir (RF03): o estoque nunca cria produto;
+- uma COMPRA atualiza produto.valor_unitario (valor pago por unidade na compra mais recente).
 
 Convenção do parâmetro `quantidade` em registrar():
 - compra, doação, devolução e venda: sempre um número POSITIVO (a quantidade
@@ -289,8 +290,22 @@ class MovimentacaoEstoqueService:
             )
         )
         produto.quantidade = novo_saldo  # o UPDATE sai junto no commit
+        if tipo is TipoMovimentacao.COMPRA:
+            self._atualizar_valor_unitario(produto)
         self._confirmar()
         return movimentacao
+
+    def _atualizar_valor_unitario(self, produto: Produto) -> None:
+        """
+        valor_unitario do produto = valor da compra MAIS RECENTE ÷ quantidade.
+        Só compra mexe nisso (doação não tem valor; venda é preço de venda).
+        Uma compra lançada com data antiga não sobrescreve uma mais nova.
+        """
+        ultima = self._repo.ultima_compra(produto.id_produto)
+        if ultima is not None and ultima.valor is not None and ultima.quantidade > 0:
+            produto.valor_unitario = (ultima.valor / ultima.quantidade).quantize(
+                Decimal("0.0001"), rounding=ROUND_HALF_UP
+            )
 
     def _confirmar(self) -> None:
         """

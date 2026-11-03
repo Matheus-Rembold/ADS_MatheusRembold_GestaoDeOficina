@@ -40,6 +40,8 @@ CREATE TABLE produto (
     prateleira        VARCHAR(50),
     quantidade        INT NOT NULL DEFAULT 0 CHECK (quantidade >= 0),
     quantidade_minima INT NOT NULL DEFAULT 0 CHECK (quantidade_minima >= 0),
+    -- valor pago por UNIDADE na compra mais recente (atualizado pelo RF09)
+    valor_unitario    NUMERIC(12,4) CONSTRAINT ck_produto_valor_unitario CHECK (valor_unitario IS NULL OR valor_unitario >= 0),
     criado_em         TIMESTAMP NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX uq_produto_nome ON produto (LOWER(nome));
@@ -70,10 +72,16 @@ CREATE TABLE ordem_servico (
     id_nota_fiscal      INT UNIQUE REFERENCES nota_fiscal(id_nota_fiscal),
     descricao_problema  TEXT,
     quilometragem       INT,
+    tipo_servico        VARCHAR(150),
+    valor_mao_de_obra   NUMERIC(10,2) NOT NULL DEFAULT 0
+                            CONSTRAINT ck_os_valor_mao_de_obra CHECK (valor_mao_de_obra >= 0),
     status              VARCHAR(25) NOT NULL DEFAULT 'orcamento'
-                            CHECK (status IN ('orcamento', 'andamento', 'pronto', 'aguardando_pagamento')),
+                            CONSTRAINT ck_ordem_servico_status
+                            CHECK (status IN ('orcamento', 'andamento', 'pronto', 'aguardando_pagamento', 'entregue')),
     criado_em           TIMESTAMP NOT NULL DEFAULT NOW(),
-    atualizado_em       TIMESTAMP NOT NULL DEFAULT NOW()
+    atualizado_em       TIMESTAMP NOT NULL DEFAULT NOW(),
+    entregue_em         TIMESTAMP,
+    CONSTRAINT ck_os_entregue_em CHECK ((status = 'entregue') = (entregue_em IS NOT NULL))
 );
 
 -- ------------------------------------------------------------
@@ -86,6 +94,9 @@ CREATE TABLE os_produto (
     id_ordem_servico    INT NOT NULL REFERENCES ordem_servico(id_ordem_servico),
     id_produto          INT NOT NULL REFERENCES produto(id_produto),
     quantidade_utilizada INT NOT NULL CHECK (quantidade_utilizada > 0),
+    -- preço cobrado por unidade (digitado na OS) e custo = último valor pago na hora
+    preco_unitario      NUMERIC(10,2) NOT NULL CONSTRAINT ck_os_produto_preco CHECK (preco_unitario >= 0),
+    custo_unitario      NUMERIC(12,4) CONSTRAINT ck_os_produto_custo CHECK (custo_unitario IS NULL OR custo_unitario >= 0),
     UNIQUE (id_ordem_servico, id_produto)
 );
 
@@ -105,17 +116,37 @@ CREATE TABLE agendamento (
 );
 
 -- ------------------------------------------------------------
--- 8. ENTRADA_ESTOQUE
--- RF09 — registro de compras; produto deve já existir (a FK
--- já garante isso, sem necessidade de checagem extra)
+-- 8. MOVIMENTACAO_ESTOQUE
+-- RF09 — movimentações manuais de estoque (só registro e consulta).
+-- tipo: compra, doacao, devolucao_fornecedor, venda_avulsa, ajuste.
+-- quantidade COM SINAL: positiva aumenta o saldo do produto, negativa
+-- diminui. As regras por tipo ficam nos CHECK abaixo (e também no
+-- MovimentacaoEstoqueService, que dá a mensagem amigável).
+-- O consumo de peças em OS NÃO é movimentação: fica em os_produto (RF04).
 -- ------------------------------------------------------------
-CREATE TABLE entrada_estoque (
-    id_entrada_estoque  SERIAL PRIMARY KEY,
-    id_produto          INT NOT NULL REFERENCES produto(id_produto),
-    quantidade          INT NOT NULL CHECK (quantidade > 0),
-    valor_pago          NUMERIC(10,2) NOT NULL CHECK (valor_pago >= 0),
-    data_compra         DATE NOT NULL,
-    fornecedor          VARCHAR(150) NOT NULL
+CREATE TABLE movimentacao_estoque (
+    id_movimentacao_estoque SERIAL PRIMARY KEY,
+    id_produto              INT NOT NULL REFERENCES produto(id_produto),
+    tipo                    VARCHAR(25) NOT NULL,
+    quantidade              INT NOT NULL,
+    valor                   NUMERIC(10,2),
+    data_movimentacao       DATE NOT NULL,
+    fornecedor              VARCHAR(150),
+    observacao              TEXT,
+    CONSTRAINT ck_mov_estoque_tipo
+        CHECK (tipo IN ('compra', 'doacao', 'devolucao_fornecedor', 'venda_avulsa', 'ajuste')),
+    CONSTRAINT ck_mov_estoque_quantidade CHECK (quantidade <> 0),
+    CONSTRAINT ck_mov_estoque_sinal
+        CHECK ((tipo IN ('compra', 'doacao') AND quantidade > 0)
+            OR (tipo IN ('devolucao_fornecedor', 'venda_avulsa') AND quantidade < 0)
+            OR tipo = 'ajuste'),
+    CONSTRAINT ck_mov_estoque_valor CHECK (valor IS NULL OR valor >= 0),
+    CONSTRAINT ck_mov_estoque_valor_obrigatorio
+        CHECK (tipo NOT IN ('compra', 'venda_avulsa') OR valor IS NOT NULL),
+    CONSTRAINT ck_mov_estoque_fornecedor_obrigatorio
+        CHECK (tipo NOT IN ('compra', 'devolucao_fornecedor') OR fornecedor IS NOT NULL),
+    CONSTRAINT ck_mov_estoque_ajuste_observacao
+        CHECK (tipo <> 'ajuste' OR observacao IS NOT NULL)
 );
 
 -- ------------------------------------------------------------
@@ -142,7 +173,8 @@ CREATE INDEX idx_os_cliente             ON ordem_servico(id_cliente);
 CREATE INDEX idx_os_veiculo             ON ordem_servico(id_veiculo);
 CREATE INDEX idx_os_status              ON ordem_servico(status);
 CREATE INDEX idx_agendamento_data       ON agendamento(data_hora);
-CREATE INDEX idx_entrada_produto        ON entrada_estoque(id_produto);
+CREATE INDEX idx_movimentacao_produto   ON movimentacao_estoque(id_produto);
+CREATE INDEX idx_movimentacao_data      ON movimentacao_estoque(data_movimentacao);
 CREATE INDEX idx_os_produto_produto     ON os_produto(id_produto);
 
 
@@ -193,22 +225,22 @@ INSERT INTO nota_fiscal (numero, chave_acesso, status, emitida_em) VALUES
 -- ------------------------------------------------------------
 -- 5. ORDEM_SERVICO
 -- ------------------------------------------------------------
-INSERT INTO ordem_servico (id_cliente, id_veiculo, id_nota_fiscal, descricao_problema, quilometragem, status, criado_em) VALUES
-(1, 1, 1,    'Troca de óleo e revisão geral',            52000, 'pronto',               '2026-09-10 09:00:00'),
-(2, 3, NULL, 'Ruído no motor ao acelerar',                88000, 'andamento',            '2026-09-18 10:15:00'),
-(3, 5, NULL, 'Orçamento para troca de pastilhas',         31000, 'orcamento',            '2026-09-20 11:00:00'),
-(4, 6, NULL, 'Troca de bateria - carro não liga',         15500, 'aguardando_pagamento', '2026-09-19 16:20:00'),
-(2, 4, 2,    'Revisão de suspensão dianteira',            60200, 'pronto',               '2026-09-05 08:45:00');
+INSERT INTO ordem_servico (id_cliente, id_veiculo, id_nota_fiscal, descricao_problema, quilometragem, tipo_servico, valor_mao_de_obra, status, criado_em, entregue_em) VALUES
+(1, 1, 1,    'Troca de óleo e revisão geral',            52000, 'Revisão',    120.00, 'entregue',             '2026-09-10 09:00:00', '2026-09-12 17:00:00'),
+(2, 3, NULL, 'Ruído no motor ao acelerar',                88000, 'Motor',      250.00, 'andamento',            '2026-09-18 10:15:00', NULL),
+(3, 5, NULL, 'Orçamento para troca de pastilhas',         31000, 'Freios',      80.00, 'orcamento',            '2026-09-20 11:00:00', NULL),
+(4, 6, NULL, 'Troca de bateria - carro não liga',         15500, 'Elétrica',    50.00, 'aguardando_pagamento', '2026-09-19 16:20:00', NULL),
+(2, 4, 2,    'Revisão de suspensão dianteira',            60200, 'Suspensão',  300.00, 'entregue',             '2026-09-05 08:45:00', '2026-09-08 16:30:00');
 
 -- ------------------------------------------------------------
 -- 6. OS_PRODUTO
 -- ------------------------------------------------------------
-INSERT INTO os_produto (id_ordem_servico, id_produto, quantidade_utilizada) VALUES
-(1, 1, 4),  -- 4 litros de óleo na OS 1
-(1, 2, 1),  -- 1 filtro de óleo na OS 1
-(2, 4, 1),  -- 1 correia dentada na OS 2
-(4, 5, 1),  -- 1 bateria na OS 4
-(5, 6, 2);  -- 2 amortecedores na OS 5
+INSERT INTO os_produto (id_ordem_servico, id_produto, quantidade_utilizada, preco_unitario) VALUES
+(1, 1, 4, 25.00),   -- 4 litros de óleo na OS 1
+(1, 2, 1, 30.00),   -- 1 filtro de óleo na OS 1
+(2, 4, 1, 180.00),  -- 1 correia dentada na OS 2
+(4, 5, 1, 320.00),  -- 1 bateria na OS 4
+(5, 6, 2, 290.00);  -- 2 amortecedores na OS 5
 
 -- ------------------------------------------------------------
 -- 7. AGENDAMENTO
@@ -220,14 +252,25 @@ INSERT INTO agendamento (id_cliente, id_veiculo, tipo_servico, data_hora, duraca
 (2, 3, 'Diagnóstico de ruído',        '2026-09-22 08:00:00', 1.0, 'cancelado');
 
 -- ------------------------------------------------------------
--- 8. ENTRADA_ESTOQUE
+-- 8. MOVIMENTACAO_ESTOQUE
 -- ------------------------------------------------------------
-INSERT INTO entrada_estoque (id_produto, quantidade, valor_pago, data_compra, fornecedor) VALUES
-(1, 50, 850.00,  '2026-08-01', 'Distribuidora Lubrimax'),
-(2, 30, 420.00,  '2026-08-01', 'Distribuidora Lubrimax'),
-(3, 10, 380.00,  '2026-07-15', 'Auto Peças Sul'),
-(3, 4,  160.00,  '2026-09-01', 'Auto Peças Sul'),
-(5, 10, 1800.00, '2026-08-20', 'Baterias Center');
+INSERT INTO movimentacao_estoque (id_produto, tipo, quantidade, valor, data_movimentacao, fornecedor) VALUES
+(1, 'compra', 50, 850.00,  '2026-08-01', 'Distribuidora Lubrimax'),
+(2, 'compra', 30, 420.00,  '2026-08-01', 'Distribuidora Lubrimax'),
+(3, 'compra', 10, 380.00,  '2026-07-15', 'Auto Peças Sul'),
+(3, 'compra', 4,  160.00,  '2026-09-01', 'Auto Peças Sul'),
+(5, 'compra', 10, 1800.00, '2026-08-20', 'Baterias Center');
+
+-- valor_unitario do produto = valor da compra mais recente ÷ quantidade
+UPDATE produto p SET valor_unitario = ROUND(m.valor / m.quantidade, 4)
+FROM (SELECT DISTINCT ON (id_produto) id_produto, valor, quantidade
+      FROM movimentacao_estoque WHERE tipo = 'compra'
+      ORDER BY id_produto, data_movimentacao DESC, id_movimentacao_estoque DESC) m
+WHERE m.id_produto = p.id_produto;
+
+-- custo_unitario das peças já lançadas nas OS (cópia do valor do produto)
+UPDATE os_produto op SET custo_unitario = p.valor_unitario
+FROM produto p WHERE p.id_produto = op.id_produto;
 
 -- ------------------------------------------------------------
 -- 9. NOTIFICACAO

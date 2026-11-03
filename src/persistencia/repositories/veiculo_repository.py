@@ -12,7 +12,7 @@ from typing import List, Optional
 from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session, joinedload
 
-from src.persistencia.models import Agendamento, Cliente, OrdemServico, Veiculo
+from src.persistencia.models import Agendamento, Cliente, OrdemServico, StatusOrdemServico, Veiculo
 
 
 class VeiculoRepository:
@@ -100,7 +100,7 @@ class VeiculoRepository:
         stmt = select(
             exists().where(
                 OrdemServico.id_veiculo == id_veiculo,
-                OrdemServico.status == "andamento",
+                OrdemServico.status == StatusOrdemServico.ANDAMENTO,
             )
         )
         return bool(self._session.scalar(stmt))

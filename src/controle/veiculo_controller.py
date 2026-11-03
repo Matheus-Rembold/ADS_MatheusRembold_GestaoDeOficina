@@ -13,7 +13,7 @@ from typing import Callable, List, Optional
 from sqlalchemy.orm import Session
 
 from src.config.database import SessionLocal
-from src.persistencia.models import OrdemServico, Veiculo
+from src.persistencia.models import OrdemServico, StatusOrdemServico, Veiculo
 from src.servico.cliente_service import ClienteService
 from src.servico.veiculo_service import VeiculoService
 
@@ -68,7 +68,7 @@ class OrdemServicoHistoricoDTO:
     """Uma linha do histórico de serviços do veículo (HU05)."""
 
     id_ordem_servico: int
-    status: str
+    status: StatusOrdemServico
     descricao_problema: Optional[str]
     quilometragem: Optional[int]
     criado_em: datetime

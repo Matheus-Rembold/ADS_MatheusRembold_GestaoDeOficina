@@ -17,7 +17,7 @@ from typing import List, Optional
 from sqlalchemy import exists, select
 from sqlalchemy.orm import Session, selectinload
 
-from src.persistencia.models import Agendamento, Cliente, OrdemServico, Veiculo
+from src.persistencia.models import Agendamento, Cliente, OrdemServico, StatusOrdemServico, Veiculo
 
 
 class ClienteRepository:
@@ -81,7 +81,7 @@ class ClienteRepository:
         stmt = select(
             exists().where(
                 OrdemServico.id_cliente == id_cliente,
-                OrdemServico.status == "andamento",
+                OrdemServico.status == StatusOrdemServico.ANDAMENTO,
             )
         )
         return bool(self._session.scalar(stmt))

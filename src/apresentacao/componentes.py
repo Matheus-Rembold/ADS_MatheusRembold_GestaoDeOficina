@@ -8,6 +8,7 @@ tradução instalada).
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from typing import Optional
 
 from PyQt6.QtWidgets import QMessageBox, QWidget
@@ -59,3 +60,22 @@ def erro_inesperado(
     caixa.setDetailedText(f"{type(excecao).__name__}: {excecao}")
     caixa.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
     caixa.exec()
+
+
+def formatar_moeda(valor: Optional[Decimal]) -> str:
+    """Decimal('1250.9') -> 'R$ 1.250,90' (formato brasileiro)."""
+    if valor is None:
+        return "—"
+    texto = f"{valor:,.2f}"  # 1,250.90
+    return "R$ " + texto.replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def converter_valor(texto: str) -> Optional[Decimal]:
+    """'1.234,56' ou '1234.56' -> Decimal('1234.56'). Vazio -> None.
+    Levanta decimal.InvalidOperation se o texto não for número."""
+    t = texto.strip().replace("R$", "").replace(" ", "")
+    if not t:
+        return None
+    if "," in t:  # formato brasileiro: ponto separa milhar, vírgula separa centavos
+        t = t.replace(".", "").replace(",", ".")
+    return Decimal(t)

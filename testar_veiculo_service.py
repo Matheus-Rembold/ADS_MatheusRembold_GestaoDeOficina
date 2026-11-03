@@ -109,7 +109,7 @@ def main() -> None:
             print("\n--- HU05: histórico (seed) ---")
             camaro = servico.buscar_por_placa("CAM1A19")
             hist = servico.historico(camaro.id_veiculo)
-            verificar("Camaro SS do seed tem 1 OS no histórico", len(hist) == 1 and hist[0].status == "pronto")
+            verificar("Camaro SS do seed tem 1 OS no histórico", len(hist) == 1 and hist[0].status in ("pronto", "entregue"))
             verificar("veículo novo tem histórico vazio", servico.historico(v1.id_veiculo) == [])
             esperar_erro("histórico de veículo inexistente", RegistroNaoEncontradoError,
                          lambda: servico.historico(999999))

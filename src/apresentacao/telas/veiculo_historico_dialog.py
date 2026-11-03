@@ -20,14 +20,6 @@ from PyQt6.QtWidgets import (
 
 from src.controle.veiculo_controller import OrdemServicoHistoricoDTO, VeiculoDTO
 
-# Nomes de status como aparecem no DVP (RF04).
-ROTULOS_STATUS = {
-    "orcamento": "Somente orçamento",
-    "andamento": "Em andamento",
-    "pronto": "Pronto",
-    "aguardando_pagamento": "Aguardando pagamento",
-}
-
 COLUNAS = ["OS", "Data", "Status", "Km", "Problema"]
 
 
@@ -67,7 +59,7 @@ class VeiculoHistoricoDialog(QDialog):
             valores = [
                 f"#{o.id_ordem_servico}",
                 o.criado_em.strftime("%d/%m/%Y"),
-                ROTULOS_STATUS.get(o.status, o.status),
+                o.status.rotulo,
                 "—" if o.quilometragem is None else f"{o.quilometragem:,}".replace(",", "."),
                 o.descricao_problema or "—",
             ]

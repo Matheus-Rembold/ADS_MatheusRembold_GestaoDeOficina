@@ -7,6 +7,7 @@ devolve DTOs (nunca objetos ORM) e deixa as ErroDeNegocio subirem para a tela.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Callable, List, Optional
 
 from sqlalchemy.orm import Session
@@ -36,6 +37,7 @@ class ProdutoDTO:
     quantidade: int
     quantidade_minima: int
     estoque_baixo: bool  # regra do HU09, calculada no model
+    valor_unitario: Optional[Decimal]  # valor pago por unidade na última compra (só leitura)
 
     @staticmethod
     def de_modelo(produto: Produto) -> "ProdutoDTO":
@@ -47,6 +49,7 @@ class ProdutoDTO:
             quantidade=produto.quantidade,
             quantidade_minima=produto.quantidade_minima,
             estoque_baixo=produto.estoque_baixo,
+            valor_unitario=produto.valor_unitario,
         )
 
 
