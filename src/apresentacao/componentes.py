@@ -70,6 +70,28 @@ def formatar_moeda(valor: Optional[Decimal]) -> str:
     return "R$ " + texto.replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def formatar_moeda_com_sinal(valor: Optional[Decimal]) -> str:
+    """Decimal('-14.84') -> '−R$ 14,84': o sinal fica visível (não depender só da cor)."""
+    if valor is None:
+        return "—"
+    return ("−" if valor < 0 else "") + formatar_moeda(abs(valor))
+
+
+def formatar_percentual(fracao: Optional[Decimal]) -> str:
+    """Decimal('0.2') -> '20,0%'; Decimal('-0.0833') -> '−8,3%'. None -> '—'."""
+    if fracao is None:
+        return "—"
+    texto = f"{fracao * 100:.1f}".replace(".", ",").replace("-", "−")
+    return texto + "%"
+
+
+def destacar(widget: QWidget, propriedade: str, ligado: bool) -> None:
+    """Liga/desliga uma propriedade de estilo do tema (ex.: negativa) e reaplica o QSS."""
+    widget.setProperty(propriedade, ligado)
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+
+
 def converter_valor(texto: str) -> Optional[Decimal]:
     """'1.234,56' ou '1234.56' -> Decimal('1234.56'). Vazio -> None.
     Levanta decimal.InvalidOperation se o texto não for número."""

@@ -8,11 +8,16 @@ Regras deste módulo:
   não recebem "quantidade" e o atualizar nunca a modifica;
 - quantidade_minima é editável e alimenta o alerta de estoque baixo (HU09);
 - produto já usado em OS ou com movimentações de estoque não pode ser excluído
-  (mesma política de preservar o histórico dos outros módulos).
+  (mesma política de preservar o histórico dos outros módulos);
+- PREÇO DE VENDA (src/servico/precificacao.py): no modo automático é sempre
+  custo × (1 + MARKUP_PADRAO) e o valor enviado pela tela é ignorado; no modo
+  manual o preço é obrigatório e as compras não o sobrescrevem. Voltar ao
+  automático recalcula na hora a partir do custo atual.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, Dict, List, Optional, Union
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -25,8 +30,12 @@ from src.servico.excecoes import (
     RegistroNaoEncontradoError,
     ValidacaoError,
 )
+from src.servico.precificacao import recalcular_preco_automatico
 
 QUANTIDADE_MINIMA_MAXIMA = 1_000_000
+VALOR_MAXIMO = Decimal("99999999.99")  # limite do NUMERIC(10,2)
+
+Numero = Union[int, float, Decimal]
 
 
 class ProdutoService:
@@ -43,14 +52,20 @@ class ProdutoService:
         categoria: Optional[str] = None,
         prateleira: Optional[str] = None,
         quantidade_minima: Optional[int] = 0,
+        preco_venda_manual: bool = False,
+        preco_venda: Optional[Numero] = None,
     ) -> Produto:
-        dados = self._validar_dados(nome, categoria, prateleira, quantidade_minima)
+        dados = self._validar_dados(
+            nome, categoria, prateleira, quantidade_minima, preco_venda_manual, preco_venda
+        )
 
         if self._repo.buscar_por_nome_exato(dados["nome"]) is not None:
             raise RegistroDuplicadoError("Já existe um produto cadastrado com este nome.")
 
-        # quantidade começa em 0: o estoque entra pelo RF09.
+        # quantidade começa em 0: o estoque entra pelo RF09. Produto novo
+        # ainda não tem custo, então no automático o preço nasce vazio.
         produto = self._repo.adicionar(Produto(quantidade=0, **dados))
+        recalcular_preco_automatico(produto)
         self._confirmar()
         return produto
 
@@ -64,9 +79,13 @@ class ProdutoService:
         categoria: Optional[str] = None,
         prateleira: Optional[str] = None,
         quantidade_minima: Optional[int] = 0,
+        preco_venda_manual: bool = False,
+        preco_venda: Optional[Numero] = None,
     ) -> Produto:
         produto = self.obter(id_produto)  # regra: só edita quem já existe
-        dados = self._validar_dados(nome, categoria, prateleira, quantidade_minima)
+        dados = self._validar_dados(
+            nome, categoria, prateleira, quantidade_minima, preco_venda_manual, preco_venda
+        )
 
         # O nome pode repetir apenas se pertencer ao PRÓPRIO produto editado.
         outro = self._repo.buscar_por_nome_exato(dados["nome"])
@@ -74,7 +93,8 @@ class ProdutoService:
             raise RegistroDuplicadoError("Já existe outro produto com este nome.")
 
         for campo, valor in dados.items():
-            setattr(produto, campo, valor)  # "quantidade" não está em dados: não muda
+            setattr(produto, campo, valor)  # "quantidade" e o custo não estão em dados: não mudam
+        recalcular_preco_automatico(produto)  # voltou ao automático? alinha ao custo
         self._confirmar()
         return produto
 
@@ -129,6 +149,8 @@ class ProdutoService:
         categoria: Optional[str],
         prateleira: Optional[str],
         quantidade_minima: Optional[int],
+        preco_venda_manual: bool = False,
+        preco_venda: Optional[Numero] = None,
     ) -> Dict[str, Any]:
         """
         Valida e normaliza os dados. Acumula TODOS os erros e levanta uma
@@ -161,15 +183,42 @@ class ProdutoService:
                 f"A quantidade mínima deve ser um número inteiro entre 0 e {QUANTIDADE_MINIMA_MAXIMA}."
             )
 
+        manual = bool(preco_venda_manual)
+        preco_final: Optional[Decimal] = None
+        if manual:  # no automático o preço vem do custo (o valor enviado é ignorado)
+            if preco_venda is None:
+                erros.append("Informe o preço de venda ou marque o cálculo automático.")
+            else:
+                preco_final = self._normalizar_preco(preco_venda)
+                if preco_final is None:
+                    erros.append("O preço de venda deve ser um número entre 0,00 e 99.999.999,99.")
+
         if erros:
             raise ValidacaoError(erros)
 
-        return {
+        dados = {
             "nome": nome,
             "categoria": categoria,
             "prateleira": prateleira,
             "quantidade_minima": quantidade_minima,
+            "preco_venda_manual": manual,
         }
+        if manual:
+            dados["preco_venda"] = preco_final
+        return dados
+
+    @staticmethod
+    def _normalizar_preco(valor: Numero) -> Optional[Decimal]:
+        """Número -> Decimal com 2 casas; None se não for número ou estiver fora do limite."""
+        if isinstance(valor, bool) or not isinstance(valor, (int, float, Decimal)):
+            return None
+        try:
+            decimal = Decimal(str(valor)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        except Exception:  # noqa: BLE001  (NaN, infinito...)
+            return None
+        if decimal < 0 or decimal > VALOR_MAXIMO:
+            return None
+        return decimal
 
     def _confirmar(self) -> None:
         """

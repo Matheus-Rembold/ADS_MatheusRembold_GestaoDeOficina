@@ -24,6 +24,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -103,6 +104,8 @@ class OrdemServico(Base):
             "(status = 'entregue') = (entregue_em IS NOT NULL)",
             name="ck_os_entregue_em",
         ),
+        # RF06: os relatórios filtram as OS entregues por período (RNF06).
+        Index("idx_os_entregue_em", "entregue_em"),
     )
 
     id_ordem_servico: Mapped[int] = mapped_column(primary_key=True)

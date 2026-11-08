@@ -6,7 +6,7 @@ devolve DTOs (nunca objetos ORM) e deixa as ErroDeNegocio subirem para a tela.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 from typing import Callable, List, Optional
@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from src.config.database import SessionLocal
 from src.persistencia.models import MovimentacaoEstoque, TipoMovimentacao
 from src.servico.movimentacao_estoque_service import MovimentacaoEstoqueService
+from src.servico.precificacao import preco_sugerido_divergente
 from src.servico.produto_service import ProdutoService
 
 # Reexportadas de propósito: a tela importa tudo DAQUI, sem precisar
@@ -52,6 +53,10 @@ class MovimentacaoDTO:
     data_movimentacao: date
     fornecedor: Optional[str]
     observacao: Optional[str]
+    # Preenchidos só no retorno de uma COMPRA de produto com preço MANUAL cujo
+    # novo custo sugere outro preço: a tela avisa, o preço não é alterado.
+    preco_venda_mantido: Optional[Decimal] = None
+    preco_venda_sugerido: Optional[Decimal] = None
 
     @staticmethod
     def de_modelo(m: MovimentacaoEstoque) -> "MovimentacaoDTO":
@@ -75,6 +80,7 @@ class ProdutoOpcaoDTO:
     id_produto: int
     nome: str
     quantidade: int
+    preco_venda: Optional[Decimal] = None  # pré-preenche o valor da venda por fora
 
 
 class MovimentacaoEstoqueController:
@@ -99,7 +105,7 @@ class MovimentacaoEstoqueController:
         """Produtos em ordem alfabética, com o saldo atual, para o campo 'Produto'."""
         with self._session_factory() as session:
             return [
-                ProdutoOpcaoDTO(p.id_produto, p.nome, p.quantidade)
+                ProdutoOpcaoDTO(p.id_produto, p.nome, p.quantidade, p.preco_venda)
                 for p in ProdutoService(session).listar()
             ]
 
@@ -117,7 +123,16 @@ class MovimentacaoEstoqueController:
             movimentacao = MovimentacaoEstoqueService(session).registrar(
                 id_produto, tipo, quantidade, data_movimentacao, valor, fornecedor, observacao
             )
-            return MovimentacaoDTO.de_modelo(movimentacao)
+            dto = MovimentacaoDTO.de_modelo(movimentacao)
+            if movimentacao.tipo is TipoMovimentacao.COMPRA:
+                sugerido = preco_sugerido_divergente(movimentacao.produto)
+                if sugerido is not None:
+                    dto = replace(
+                        dto,
+                        preco_venda_mantido=movimentacao.produto.preco_venda,
+                        preco_venda_sugerido=sugerido,
+                    )
+            return dto
 
     def ajustar_para_contagem(
         self,

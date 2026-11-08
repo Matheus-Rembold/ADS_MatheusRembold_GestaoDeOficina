@@ -13,7 +13,10 @@ Regras deste módulo:
   MESMA transação: ou grava os dois ou nenhum;
 - o saldo do produto nunca pode ficar negativo;
 - o produto precisa já existir (RF03): o estoque nunca cria produto;
-- uma COMPRA atualiza produto.valor_unitario (valor pago por unidade na compra mais recente).
+- uma COMPRA atualiza produto.valor_unitario (valor pago por unidade na compra mais recente)
+  e, se o produto estiver no modo automático, recalcula o preço de venda
+  (custo × (1 + MARKUP_PADRAO)). Preço MANUAL não é sobrescrito; o controller
+  avisa a tela do preço sugerido (precificacao.preco_sugerido_divergente).
 
 Convenção do parâmetro `quantidade` em registrar():
 - compra, doação, devolução e venda: sempre um número POSITIVO (a quantidade
@@ -40,6 +43,7 @@ from src.servico.excecoes import (
     RegistroNaoEncontradoError,
     ValidacaoError,
 )
+from src.servico.precificacao import recalcular_preco_automatico
 
 QUANTIDADE_MAXIMA = 1_000_000
 VALOR_MAXIMO = Decimal("99999999.99")  # limite do NUMERIC(10,2)
@@ -300,12 +304,14 @@ class MovimentacaoEstoqueService:
         valor_unitario do produto = valor da compra MAIS RECENTE ÷ quantidade.
         Só compra mexe nisso (doação não tem valor; venda é preço de venda).
         Uma compra lançada com data antiga não sobrescreve uma mais nova.
+        Em seguida o preço de venda acompanha o custo (só no modo automático).
         """
         ultima = self._repo.ultima_compra(produto.id_produto)
         if ultima is not None and ultima.valor is not None and ultima.quantidade > 0:
             produto.valor_unitario = (ultima.valor / ultima.quantidade).quantize(
                 Decimal("0.0001"), rounding=ROUND_HALF_UP
             )
+        recalcular_preco_automatico(produto)
 
     def _confirmar(self) -> None:
         """

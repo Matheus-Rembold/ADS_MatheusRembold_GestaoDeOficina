@@ -16,6 +16,14 @@ from src.config.database import SessionLocal
 from src.persistencia.models import Produto
 from src.servico.produto_service import ProdutoService
 
+# Regra de preço reexportada: a tela calcula a prévia da margem com a MESMA
+# função do serviço, sem importar a camada de serviço diretamente.
+from src.servico.precificacao import (  # noqa: F401
+    MARKUP_PADRAO,
+    calcular_preco_venda,
+    margem_sobre_custo,
+)
+
 # Reexportadas de propósito: a tela importa as exceções DAQUI.
 from src.servico.excecoes import (  # noqa: F401
     ErroDeNegocio,
@@ -37,7 +45,11 @@ class ProdutoDTO:
     quantidade: int
     quantidade_minima: int
     estoque_baixo: bool  # regra do HU09, calculada no model
-    valor_unitario: Optional[Decimal]  # valor pago por unidade na última compra (só leitura)
+    valor_unitario: Optional[Decimal]  # CUSTO: valor pago por unidade na última compra (só leitura)
+    preco_venda: Optional[Decimal]  # preço cobrado do cliente por unidade
+    preco_venda_manual: bool  # True = definido à mão; as compras não o sobrescrevem
+    preco_sugerido: Optional[Decimal]  # custo × (1 + MARKUP_PADRAO); referência na tela
+    margem: Optional[Decimal]  # margem efetiva sobre o custo (0.20 = 20%); None sem custo
 
     @staticmethod
     def de_modelo(produto: Produto) -> "ProdutoDTO":
@@ -50,6 +62,10 @@ class ProdutoDTO:
             quantidade_minima=produto.quantidade_minima,
             estoque_baixo=produto.estoque_baixo,
             valor_unitario=produto.valor_unitario,
+            preco_venda=produto.preco_venda,
+            preco_venda_manual=produto.preco_venda_manual,
+            preco_sugerido=calcular_preco_venda(produto.valor_unitario),
+            margem=margem_sobre_custo(produto.preco_venda, produto.valor_unitario),
         )
 
 
@@ -76,10 +92,12 @@ class ProdutoController:
         categoria: Optional[str] = None,
         prateleira: Optional[str] = None,
         quantidade_minima: Optional[int] = 0,
+        preco_venda_manual: bool = False,
+        preco_venda: Optional[Decimal] = None,
     ) -> ProdutoDTO:
         with self._session_factory() as session:
             produto = ProdutoService(session).cadastrar(
-                nome, categoria, prateleira, quantidade_minima
+                nome, categoria, prateleira, quantidade_minima, preco_venda_manual, preco_venda
             )
             return ProdutoDTO.de_modelo(produto)
 
@@ -90,10 +108,13 @@ class ProdutoController:
         categoria: Optional[str] = None,
         prateleira: Optional[str] = None,
         quantidade_minima: Optional[int] = 0,
+        preco_venda_manual: bool = False,
+        preco_venda: Optional[Decimal] = None,
     ) -> ProdutoDTO:
         with self._session_factory() as session:
             produto = ProdutoService(session).atualizar(
-                id_produto, nome, categoria, prateleira, quantidade_minima
+                id_produto, nome, categoria, prateleira, quantidade_minima,
+                preco_venda_manual, preco_venda,
             )
             return ProdutoDTO.de_modelo(produto)
 

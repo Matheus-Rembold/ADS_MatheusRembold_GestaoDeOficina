@@ -7,8 +7,12 @@ Decisões de usabilidade (Nielsen):
   valores não podem mudar depois de prontos); a quilometragem menor que a da
   última OS apenas AVISA e pede confirmação.
 - Visibilidade do estado do sistema: totais (peças, mão de obra, total)
-  recalculados na hora; ao escolher uma peça aparece o saldo em estoque e o
-  último valor pago, como referência para definir o preço.
+  recalculados na hora; ao escolher uma peça aparecem o preço de venda, o
+  custo e o saldo em estoque.
+- Eficiência de uso: o preço da peça já vem preenchido com o PREÇO DE VENDA
+  do produto (custo + markup); o usuário só altera em caso especial
+  (desconto). Preço abaixo do custo fica em vermelho na tabela, com aviso em
+  texto, e pede confirmação ao salvar, sem bloquear (mesmo padrão da km).
 - Ajuda para se recuperar de erros: a janela não fecha quando há erro (ex.:
   estoque insuficiente); tudo o que foi digitado é mantido.
 - Reconhecimento em vez de memorização: o tipo de serviço é uma lista editável
@@ -21,7 +25,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QIntValidator
+from PyQt6.QtGui import QBrush, QColor, QIntValidator
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -38,7 +42,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from src.apresentacao.componentes import confirmar, converter_valor, formatar_moeda
+from src.apresentacao.componentes import confirmar, converter_valor, destacar, formatar_moeda
+from src.apresentacao.tema import ERRO
 from src.controle.ordem_servico_controller import (
     ErroDeNegocio,
     ItemOS,
@@ -69,6 +74,8 @@ class OrdemServicoDialog(QDialog):
         self._produtos: Dict[int, ProdutoParaOSDTO] = {}
         # id_produto -> [quantidade, preço]
         self._itens: Dict[int, List] = {}
+        # custo já COPIADO na OS para as peças que vieram do banco (edição)
+        self._custos_gravados: Dict[int, Optional[Decimal]] = {}
 
         if os_ is None:
             self.setWindowTitle("Nova ordem de serviço")
@@ -167,6 +174,12 @@ class OrdemServicoDialog(QDialog):
         for c in (1, 2, 3):
             cab.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
 
+        self._aviso_custo = QLabel()
+        self._aviso_custo.setObjectName("subtitulo")
+        self._aviso_custo.setWordWrap(True)
+        destacar(self._aviso_custo, "alerta", True)
+        self._aviso_custo.hide()
+
         self._totais = QLabel()
         self._totais.setStyleSheet("font-weight: 600;")
         self._totais.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -208,6 +221,7 @@ class OrdemServicoDialog(QDialog):
         layout.addLayout(linha_peca)
         layout.addWidget(self._referencia)
         layout.addWidget(self._tabela, stretch=1)
+        layout.addWidget(self._aviso_custo)
         layout.addWidget(self._totais)
         layout.addWidget(self._aviso_estoque)
         layout.addWidget(self._erro)
@@ -270,6 +284,7 @@ class OrdemServicoDialog(QDialog):
         self._mao_de_obra.setText(f"{os_.valor_mao_de_obra:.2f}".replace(".", ","))
         for i in os_.itens:
             self._itens[i.id_produto] = [i.quantidade, i.preco_unitario]
+            self._custos_gravados[i.id_produto] = i.custo_unitario
             if i.id_produto not in self._produtos:  # produto sumiu da lista: mantém o nome
                 self._produtos[i.id_produto] = ProdutoParaOSDTO(i.id_produto, i.nome_produto, 0, i.custo_unitario)
         self._redesenhar_pecas()
@@ -303,14 +318,25 @@ class OrdemServicoDialog(QDialog):
             self._referencia.setText("")
             return
         p = self._produtos[id_produto]
-        ultimo = formatar_moeda(p.valor_unitario) if p.valor_unitario is not None else "sem compra registrada"
-        self._referencia.setText(f"Último valor pago: {ultimo}   •   Em estoque: {p.quantidade}")
-        if id_produto in self._itens:  # já está na OS: carrega para editar
+        venda = formatar_moeda(p.preco_venda) if p.preco_venda is not None else "não definido (informe o preço)"
+        custo = self._custo_de(id_produto)
+        custo_txt = formatar_moeda(custo) if custo is not None else "sem compra registrada"
+        self._referencia.setText(
+            f"Preço de venda: {venda}   •   Custo: {custo_txt}   •   Em estoque: {p.quantidade}"
+        )
+        if id_produto in self._itens:  # já está na OS: carrega para editar (preço GRAVADO)
             self._qtd.setText(str(self._itens[id_produto][0]))
             self._preco.setText(f"{self._itens[id_produto][1]:.2f}".replace(".", ","))
             self._btn_peca.setText("Atualizar")
-        else:
+        else:  # peça nova: o preço já vem com o preço de venda do produto
+            self._preco.setText("" if p.preco_venda is None else f"{p.preco_venda:.2f}".replace(".", ","))
             self._btn_peca.setText("Adicionar")
+
+    def _custo_de(self, id_produto: int) -> Optional[Decimal]:
+        """Custo que vale para a peça: o já gravado na OS ou o atual do produto."""
+        if id_produto in self._custos_gravados:
+            return self._custos_gravados[id_produto]
+        return self._produtos[id_produto].valor_unitario
 
     def _adicionar_ou_atualizar_peca(self) -> None:
         self._mostrar_erros([])
@@ -362,7 +388,12 @@ class OrdemServicoDialog(QDialog):
         self._tabela.blockSignals(True)
         ordenados = sorted(self._itens.items(), key=lambda kv: self._produtos[kv[0]].nome.lower())
         self._tabela.setRowCount(len(ordenados))
+        abaixo = []
         for linha, (id_produto, (qtd, preco)) in enumerate(ordenados):
+            custo = self._custo_de(id_produto)
+            prejuizo = custo is not None and preco < custo
+            if prejuizo:
+                abaixo.append(self._produtos[id_produto].nome)
             valores = [self._produtos[id_produto].nome, str(qtd), formatar_moeda(preco), formatar_moeda(qtd * preco)]
             for coluna, valor in enumerate(valores):
                 item = QTableWidgetItem(valor)
@@ -370,8 +401,13 @@ class OrdemServicoDialog(QDialog):
                     item.setData(Qt.ItemDataRole.UserRole, id_produto)
                 if coluna >= 1:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                if prejuizo and coluna == 2:
+                    item.setForeground(QBrush(QColor(ERRO)))
+                    item.setToolTip(f"Abaixo do custo ({formatar_moeda(custo)})")
                 self._tabela.setItem(linha, coluna, item)
         self._tabela.blockSignals(False)
+        self._aviso_custo.setText("Preço abaixo do custo: " + ", ".join(abaixo) + "." if abaixo else "")
+        self._aviso_custo.setVisible(bool(abaixo) and not self._somente_leitura)
         self._btn_remover.setEnabled(False)
         self._atualizar_totais()
 
@@ -410,6 +446,16 @@ class OrdemServicoDialog(QDialog):
         except Exception:  # noqa: BLE001
             aviso = None
         if aviso and not confirmar(self, "Quilometragem", aviso + "\n\nDeseja salvar mesmo assim?", "Salvar mesmo assim"):
+            return
+        try:
+            abaixo = self._controller.pecas_abaixo_do_custo(itens, id_os)
+        except Exception:  # noqa: BLE001
+            abaixo = []
+        if abaixo and not confirmar(
+            self, "Preço abaixo do custo",
+            "Estas peças estão com preço abaixo do custo: " + ", ".join(abaixo)
+            + ".\n\nDeseja salvar mesmo assim?", "Salvar mesmo assim",
+        ):
             return
 
         try:

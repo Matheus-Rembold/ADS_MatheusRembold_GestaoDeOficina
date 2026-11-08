@@ -33,7 +33,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.apresentacao.componentes import erro_inesperado, formatar_moeda  # noqa: F401 (reexporta)
+from src.apresentacao.componentes import aviso, erro_inesperado, formatar_moeda  # noqa: F401 (reexporta)
 from src.apresentacao.telas.movimentacao_dialog import MovimentacaoDialog
 from src.apresentacao.tema import ERRO, SUCESSO
 from src.controle.movimentacao_estoque_controller import (
@@ -255,3 +255,14 @@ class MovimentacoesView(QWidget):
             r = dialogo.resultado
             sinal = f"{r.quantidade:+d}".replace("-", "−")
             self._mostrar_feedback(f"{r.tipo.rotulo} de “{r.nome_produto}” registrada ({sinal}).")
+            if r.preco_venda_sugerido is not None:
+                # Preço definido à mão não é sobrescrito, mas o usuário precisa saber
+                # que o custo mudou (Nielsen: visibilidade do estado do sistema).
+                aviso(
+                    self,
+                    "Preço de venda mantido",
+                    f"O preço de venda de “{r.nome_produto}” foi definido manualmente e foi mantido "
+                    f"em {formatar_moeda(r.preco_venda_mantido)}.\n\n"
+                    f"Pelo novo custo, o preço sugerido seria {formatar_moeda(r.preco_venda_sugerido)}.\n"
+                    "Para usar o sugerido, edite o produto e marque “Calcular automaticamente”.",
+                )

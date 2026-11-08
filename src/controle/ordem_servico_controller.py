@@ -130,7 +130,8 @@ class ProdutoParaOSDTO:
     id_produto: int
     nome: str
     quantidade: int
-    valor_unitario: Optional[Decimal]  # último valor pago (referência)
+    valor_unitario: Optional[Decimal]  # custo: último valor pago (referência)
+    preco_venda: Optional[Decimal] = None  # pré-preenche o preço da peça na OS
 
 
 class OrdemServicoController:
@@ -153,7 +154,7 @@ class OrdemServicoController:
     def listar_produtos(self) -> List[ProdutoParaOSDTO]:
         with self._session_factory() as session:
             return [
-                ProdutoParaOSDTO(p.id_produto, p.nome, p.quantidade, p.valor_unitario)
+                ProdutoParaOSDTO(p.id_produto, p.nome, p.quantidade, p.valor_unitario, p.preco_venda)
                 for p in OrdemServicoRepository(session).listar_produtos()
             ]
 
@@ -166,6 +167,10 @@ class OrdemServicoController:
     ) -> Optional[str]:
         with self._session_factory() as session:
             return OrdemServicoService(session).aviso_quilometragem(id_veiculo, quilometragem, id_os)
+
+    def pecas_abaixo_do_custo(self, itens: Sequence[ItemOS], id_os: Optional[int] = None) -> List[str]:
+        with self._session_factory() as session:
+            return OrdemServicoService(session).pecas_abaixo_do_custo(itens, id_os)
 
     # ---------------- OS ----------------
     def listar(self, termo: str = "", status: Optional[StatusOrdemServico] = None) -> List[OrdemServicoDTO]:

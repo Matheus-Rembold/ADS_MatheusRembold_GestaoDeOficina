@@ -124,6 +124,13 @@ class OrdemServicoRepository:
         )
         return {p.id_produto: p for p in self._session.scalars(stmt).all()}
 
+    def buscar_produtos(self, ids: Sequence[int]) -> dict:
+        """Mesma busca, SEM trava: só leitura (ex.: aviso de preço abaixo do custo)."""
+        if not ids:
+            return {}
+        stmt = select(Produto).where(Produto.id_produto.in_(set(ids)))
+        return {p.id_produto: p for p in self._session.scalars(stmt).all()}
+
     def buscar_cliente(self, id_cliente: int) -> Optional[Cliente]:
         return self._session.get(Cliente, id_cliente)
 

@@ -11,6 +11,10 @@ Decisões de usabilidade (Nielsen):
 
 O ajuste não pede "quantidade a somar ou subtrair": o usuário informa a
 quantidade CONTADA na prateleira e o sistema calcula a diferença.
+
+Venda por fora: o valor recebido vem PRÉ-PREENCHIDO com preço de venda ×
+quantidade (mesma regra de preço da OS) e continua editável. Se o usuário
+digitar outro valor, a tela não o sobrescreve mais (controle do usuário).
 """
 from __future__ import annotations
 
@@ -65,7 +69,8 @@ CONFIG: Dict[TipoMovimentacao, dict] = {
     TipoMovimentacao.VENDA_AVULSA: {
         "qtd": "Quantidade vendida", "valor": ("Valor recebido (R$)", "o"),
         "forn": ("Fornecedor", "-"), "obs": ("Observação", "p"),
-        "dica": "Venda de peças fora de uma ordem de serviço. O estoque diminui.",
+        "dica": "Venda de peças fora de uma ordem de serviço. O estoque diminui. "
+                "O valor vem preenchido com o preço de venda × quantidade e pode ser alterado.",
     },
     TipoMovimentacao.AJUSTE: {
         "qtd": "Quantidade contada", "valor": ("Valor", "-"),
@@ -91,6 +96,8 @@ class MovimentacaoDialog(QDialog):
         self._controller = controller
         self.resultado: Optional[MovimentacaoDTO] = None  # preenchido após salvar com sucesso
         self._produtos: Dict[int, ProdutoOpcaoDTO] = {}
+        # Último valor que a TELA preencheu sozinha; se o campo mudar, foi o usuário.
+        self._valor_automatico: Optional[str] = None
 
         self.setWindowTitle("Nova movimentação de estoque")
         self.setModal(True)
@@ -172,6 +179,8 @@ class MovimentacaoDialog(QDialog):
         self._tipo.currentIndexChanged.connect(self._aplicar_tipo)
         self._produto.currentIndexChanged.connect(self._atualizar_efeito)
         self._quantidade.textChanged.connect(self._atualizar_efeito)
+        self._produto.currentIndexChanged.connect(self._sugerir_valor_venda)
+        self._quantidade.textChanged.connect(self._sugerir_valor_venda)
         self._aplicar_tipo()
         self._produto.setFocus()
 
@@ -206,6 +215,24 @@ class MovimentacaoDialog(QDialog):
                 campo.clear()
         self._dica.setText(cfg["dica"])
         self._atualizar_efeito()
+        self._sugerir_valor_venda()
+
+    def _sugerir_valor_venda(self) -> None:
+        """Venda por fora: valor = preço de venda × quantidade, sem apagar o que o usuário digitou."""
+        id_produto = self._produto.currentData()
+        texto_qtd = self._quantidade.text().strip()
+        preco = self._produtos[id_produto].preco_venda if id_produto is not None else None
+        digitado_pelo_usuario = self._valor.text() not in ("", self._valor_automatico)
+        if digitado_pelo_usuario:
+            return
+        if self._tipo_atual() is TipoMovimentacao.VENDA_AVULSA and preco is not None and texto_qtd:
+            total = preco * int(texto_qtd)
+            self._valor_automatico = f"{total:.2f}".replace(".", ",")
+            self._valor.setText(self._valor_automatico)
+        else:
+            if self._valor_automatico is not None and self._valor.isEnabled():
+                self._valor.clear()
+            self._valor_automatico = None
 
     def _delta_previsto(self) -> Optional[int]:
         """Variação de saldo que a tela prevê (None se ainda não dá para calcular)."""

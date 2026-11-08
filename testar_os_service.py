@@ -29,6 +29,7 @@ from src.servico.excecoes import (
 )
 from src.servico.movimentacao_estoque_service import MovimentacaoEstoqueService
 from src.servico.ordem_servico_service import ItemOS, OrdemServicoService
+from src.servico.produto_service import ProdutoService
 
 engine.echo = False
 
@@ -92,6 +93,11 @@ def vu(session, id_produto: int):
     return session.get(Produto, id_produto).valor_unitario
 
 
+def pv(session, id_produto: int):
+    session.expire_all()
+    return session.get(Produto, id_produto).preco_venda
+
+
 def main() -> None:
     limpar()
     with get_session() as s0:
@@ -137,6 +143,8 @@ def main() -> None:
             movs.ajustar_para_contagem(PB, 5, "acerto do teste")
             verificar("saldos de partida: A=10, B=5, C=3 (C nunca comprado)", (saldo(session, PA), saldo(session, PB), saldo(session, PC)) == (10, 5, 3))
             verificar("C sem compra: valor_unitario vazio", vu(session, PC) is None)
+            verificar("preço de venda automático: A = 20 x 1,2 = 24,00 | B = 10 x 1,2 = 12,00 | C vazio",
+                      (pv(session, PA), pv(session, PB), pv(session, PC)) == (Decimal("24.00"), Decimal("12.00"), None))
 
             print("\n--- Validações ---")
             ok = dict(id_cliente=C1, id_veiculo=V1, quilometragem=50000, descricao_problema="Barulho nos freios", tipo_servico=TIPO)
@@ -158,7 +166,8 @@ def main() -> None:
                          lambda: servico.cadastrar(**ok, itens=[ItemOS(PA, 1, 10), ItemOS(PA, 2, 10)]))
             esperar_erro("quantidade zero", ValidacaoError, lambda: servico.cadastrar(**ok, itens=[ItemOS(PA, 0, 10)]))
             esperar_erro("quantidade decimal", ValidacaoError, lambda: servico.cadastrar(**ok, itens=[ItemOS(PA, 1.5, 10)]))
-            esperar_erro("preço vazio", ValidacaoError, lambda: servico.cadastrar(**ok, itens=[ItemOS(PA, 1, None)]))
+            esperar_erro("preço vazio em produto SEM preço de venda (C, nunca comprado)", ValidacaoError,
+                         lambda: servico.cadastrar(**ok, itens=[ItemOS(PC, 1, None)]))
             esperar_erro("preço negativo", ValidacaoError, lambda: servico.cadastrar(**ok, itens=[ItemOS(PA, 1, -5)]))
             esperar_erro("produto inexistente", ValidacaoError, lambda: servico.cadastrar(**ok, itens=[ItemOS(99999999, 1, 5)]))
             esperar_erro("status inicial 'pronto'", ValidacaoError, lambda: servico.cadastrar(**ok, status="pronto"))
@@ -181,6 +190,45 @@ def main() -> None:
                       linhas[PA].custo_unitario == Decimal("20") and linhas[PB].custo_unitario == Decimal("10"))
             verificar("não cria movimentação de estoque", session.scalar(select(func.count()).select_from(MovimentacaoEstoque).where(
                 MovimentacaoEstoque.observacao.is_(None), MovimentacaoEstoque.id_produto == PA, MovimentacaoEstoque.quantidade < 0)) == 0)
+
+            print("\n--- Preço da peça vem do preço de venda do produto ---")
+            os_p = servico.cadastrar(**ok, valor_mao_de_obra=Decimal("50"),
+                                     itens=[ItemOS(PA, 1), ItemOS(PB, 2, Decimal("9.99"))])
+            ID_P = os_p.id_ordem_servico
+            linhas = {i.id_produto: i for i in os_p.os_produtos}
+            verificar("peça sem preço informado usa o preço de venda (A = 24,00)", linhas[PA].preco_unitario == Decimal("24.00"))
+            verificar("preço digitado prevalece (desconto em B: 9,99)", linhas[PB].preco_unitario == Decimal("9.99"))
+            verificar("total = 24 + 2 x 9,99 + 50 de mão de obra = 93,98", os_p.valor_total == Decimal("93.98"))
+            verificar("aviso: B abaixo do custo (9,99 < 10)", servico.pecas_abaixo_do_custo([ItemOS(PB, 1, Decimal("9.99"))]) == [NOME_PB])
+            verificar("sem aviso: preço de venda acima do custo", servico.pecas_abaixo_do_custo([ItemOS(PA, 1)]) == [])
+            verificar("sem aviso: preço IGUAL ao custo não é prejuízo", servico.pecas_abaixo_do_custo([ItemOS(PA, 1, 20)]) == [])
+            verificar("sem aviso: peça sem custo (C) não tem com o que comparar", servico.pecas_abaixo_do_custo([ItemOS(PC, 1, 1)]) == [])
+            verificar("aviso na edição usa o preço já gravado (B 9,99)",
+                      servico.pecas_abaixo_do_custo([ItemOS(PB, 2)], ID_P) == [NOME_PB])
+            qtd = session.scalar(select(func.count()).select_from(OrdemServico).where(OrdemServico.id_cliente == C1))
+            e = esperar_erro("C sem preço de venda e sem preço digitado", ValidacaoError,
+                             lambda: servico.cadastrar(**ok, itens=[ItemOS(PA, 1), ItemOS(PC, 1)]))
+            verificar("   a mensagem cita a peça e nenhuma OS foi criada",
+                      e is not None and NOME_PC in str(e)
+                      and session.scalar(select(func.count()).select_from(OrdemServico).where(OrdemServico.id_cliente == C1)) == qtd)
+
+            ProdutoService(session).atualizar(PA, NOME_PA, preco_venda_manual=True, preco_venda=Decimal("30"))
+            verificar("mudar o preço do produto NÃO altera a OS já gravada (A continua 24,00)",
+                      {i.id_produto: i.preco_unitario for i in servico.obter(ID_P).os_produtos}[PA] == Decimal("24.00"))
+            os_p = servico.atualizar(ID_P, C1, V1, 50000, "Barulho nos freios", TIPO, Decimal("50"),
+                                     [ItemOS(PA, 2), ItemOS(PB, 2), ItemOS(PC, 1, Decimal("15"))])
+            linhas = {i.id_produto: i for i in os_p.os_produtos}
+            verificar("editar sem informar preço mantém o preço GRAVADO (A 24,00; B 9,99)",
+                      linhas[PA].preco_unitario == Decimal("24.00") and linhas[PB].preco_unitario == Decimal("9.99"))
+            os_p = servico.atualizar(ID_P, C1, V1, 50000, "Barulho nos freios", TIPO, Decimal("50"),
+                                     [ItemOS(PB, 2)])
+            os_p = servico.atualizar(ID_P, C1, V1, 50000, "Barulho nos freios", TIPO, Decimal("50"),
+                                     [ItemOS(PA, 1), ItemOS(PB, 2)])
+            verificar("peça que SAIU e voltou entra com o preço de venda atual (A manual 30,00)",
+                      {i.id_produto: i.preco_unitario for i in os_p.os_produtos}[PA] == Decimal("30.00"))
+            servico.excluir(ID_P)
+            ProdutoService(session).atualizar(PA, NOME_PA, preco_venda_manual=False)
+            verificar("A de volta ao automático (24,00)", pv(session, PA) == Decimal("24.00"))
 
             print("\n--- Aviso de quilometragem (não bloqueia) ---")
             verificar("sem OS anterior no veículo... a própria OS é ignorada", servico.aviso_quilometragem(V1, 10, ID1) is None)

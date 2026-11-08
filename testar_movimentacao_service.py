@@ -21,6 +21,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 
 from src.config.database import SessionLocal, engine, get_session
+from src.controle.movimentacao_estoque_controller import MovimentacaoEstoqueController
 from src.persistencia.models import MovimentacaoEstoque, Produto, TipoMovimentacao
 from src.servico.excecoes import (
     OperacaoNaoPermitidaError,
@@ -62,6 +63,11 @@ def saldo(session, id_produto: int) -> int:
     return session.get(Produto, id_produto).quantidade
 
 
+def preco(session, id_produto: int):
+    session.expire_all()
+    return session.get(Produto, id_produto).preco_venda
+
+
 def qtd_movimentacoes(session, id_produto: int) -> int:
     return session.scalar(
         select(func.count()).select_from(MovimentacaoEstoque).where(MovimentacaoEstoque.id_produto == id_produto)
@@ -80,6 +86,9 @@ def limpar() -> None:
 
 def main() -> None:
     limpar()  # começo limpo, mesmo se uma rodada anterior falhou
+    with get_session() as s0:
+        # Total ANTES do teste: o banco pode ter movimento real ou dados de exemplo.
+        movimentacoes_antes = s0.scalar(select(func.count()).select_from(MovimentacaoEstoque))
     with get_session() as session:
         produtos = ProdutoService(session)
         servico = MovimentacaoEstoqueService(session)
@@ -95,10 +104,14 @@ def main() -> None:
             verificar("compra gravou quantidade positiva e tipo enum", m.quantidade == 10 and m.tipo is T.COMPRA)
             verificar("saldo do produto subiu para 10", saldo(session, id_a) == 10)
             verificar("valor e fornecedor normalizados", m.valor == Decimal("100.50") and m.fornecedor == "Forn X")
+            verificar("1ª compra: custo 100,50/10 = 10,05 -> preço 12,06 (x 1,20)",
+                      preco(session, id_a) == Decimal("12.06"))
             verificar("data padrão é hoje", m.data_movimentacao == hoje)
             m2 = servico.registrar(id_a, "compra", 2, valor=10, fornecedor="Forn Y")
             verificar("tipo aceito também como texto ('compra') e valor inteiro", m2.tipo is T.COMPRA)
             verificar("saldo 12", saldo(session, id_a) == 12)
+            verificar("compra recalcula o preço de venda (automático): custo 10/2 = 5,00 -> 6,00",
+                      preco(session, id_a) == Decimal("6.00"))
             esperar_erro("compra sem fornecedor", ValidacaoError,
                          lambda: servico.registrar(id_a, T.COMPRA, 1, valor=5))
             esperar_erro("compra sem valor", ValidacaoError,
@@ -127,6 +140,8 @@ def main() -> None:
             verificar("saldo 10", saldo(session, id_a) == 10)
             esperar_erro("devolução sem fornecedor", ValidacaoError,
                          lambda: servico.registrar(id_a, T.DEVOLUCAO_FORNECEDOR, 1))
+            verificar("doação, venda e devolução NÃO mudam o preço de venda (continua 6,00)",
+                      preco(session, id_a) == Decimal("6.00"))
 
             print("\n--- Saldo nunca fica negativo ---")
             antes = qtd_movimentacoes(session, id_a)
@@ -193,6 +208,34 @@ def main() -> None:
             verificar("data passada é aceita", r.data_movimentacao == hoje - timedelta(days=40))
             esperar_erro("vários erros de uma vez", ValidacaoError,
                          lambda: servico.registrar(None, "x", 0, valor=-1))
+
+            print("\n--- Preço de venda MANUAL: a compra mantém e avisa ---")
+            servico.registrar(id_a, T.COMPRA, 1, valor=Decimal("1.00"), fornecedor="X",
+                              data_movimentacao=hoje - timedelta(days=90))
+            verificar("compra com data ANTIGA não muda custo nem preço (A continua 6,00)",
+                      preco(session, id_a) == Decimal("6.00"))
+            produtos.atualizar(id_b, NOME_B, preco_venda_manual=True, preco_venda=Decimal("50"))
+            servico.registrar(id_b, T.COMPRA, 2, valor=Decimal("30.00"), fornecedor="X")
+            session.expire_all()
+            pb = session.get(Produto, id_b)
+            verificar("compra atualiza o CUSTO do produto manual (30/2 = 15)", pb.valor_unitario == Decimal("15"))
+            verificar("mas NÃO sobrescreve o preço manual (continua 50,00)",
+                      pb.preco_venda == Decimal("50.00") and pb.preco_venda_manual is True)
+            controller = MovimentacaoEstoqueController()
+            dto = controller.registrar(id_b, T.COMPRA, 4, valor=Decimal("80.00"), fornecedor="X")
+            verificar("controller avisa: preço mantido 50,00 e sugerido 80/4 x 1,2 = 24,00",
+                      dto.preco_venda_mantido == Decimal("50.00") and dto.preco_venda_sugerido == Decimal("24.00"))
+            dto = controller.registrar(id_a, T.COMPRA, 1, valor=Decimal("7.00"), fornecedor="X")
+            verificar("produto automático não gera aviso (e o preço vira 7 x 1,2 = 8,40)",
+                      dto.preco_venda_sugerido is None and preco(session, id_a) == Decimal("8.40"))
+            dto = controller.registrar(id_b, T.DOACAO, 1)
+            verificar("doação de produto manual não gera aviso", dto.preco_venda_sugerido is None)
+            opcao = next(p for p in controller.listar_produtos() if p.id_produto == id_b)
+            verificar("lista de produtos da venda por fora traz o preço de venda (pré-preenchimento)",
+                      opcao.preco_venda == Decimal("50.00"))
+            produtos.atualizar(id_b, NOME_B, preco_venda_manual=False)
+            verificar("voltar ao automático aplica o custo atual: 20 x 1,2 = 24,00",
+                      preco(session, id_b) == Decimal("24.00"))
 
             print("\n--- Consultas ---")
             todas = servico.listar()
@@ -268,8 +311,8 @@ def main() -> None:
         sobrou_mov = s.scalar(select(func.count()).select_from(MovimentacaoEstoque).where(MovimentacaoEstoque.observacao.in_(
             ["Achei peças na prateleira errada", "Quebradas", "Inventário de outubro", "Faltou peça", "Acabou tudo"])))
         verificar("limpeza: nenhuma movimentação de teste sobrou", sobrou_mov == 0)
-        verificar("seed intacto: continua com as 5 compras originais",
-                  s.scalar(select(func.count()).select_from(MovimentacaoEstoque)) == 5)
+        verificar("movimentações que já existiam continuam as mesmas (o teste não deixou lixo)",
+                  s.scalar(select(func.count()).select_from(MovimentacaoEstoque)) == movimentacoes_antes)
 
     total, ok = len(resultados), sum(resultados)
     print(f"\nResultado: {ok}/{total} verificações passaram.")
