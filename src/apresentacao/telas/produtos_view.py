@@ -8,7 +8,10 @@ Mesmas decisões de usabilidade das telas de Clientes e Veículos (Nielsen):
 - Prevenção de erros: Editar/Excluir ficam desabilitados sem seleção; a
   confirmação de exclusão tem "Cancelar" como padrão.
 - Reconhecimento em vez de memorização: busca imediata enquanto digita e
-  duplo clique na linha para editar.
+  duplo clique na linha para editar; custo, preço de venda e margem lado a
+  lado, para o usuário não precisar fazer a conta de cabeça. Margem negativa
+  aparece em vermelho e com o sinal de menos (não depende só da cor); preço
+  definido à mão aparece marcado como "(manual)".
 """
 from __future__ import annotations
 
@@ -30,7 +33,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.apresentacao.componentes import aviso, confirmar, erro_inesperado, formatar_moeda
+from src.apresentacao.componentes import (
+    aviso,
+    confirmar,
+    erro_inesperado,
+    formatar_moeda,
+    formatar_percentual,
+)
 from src.apresentacao.telas.produto_dialog import ProdutoDialog
 from src.apresentacao.tema import ERRO
 from src.controle.produto_controller import (
@@ -40,8 +49,10 @@ from src.controle.produto_controller import (
     ProdutoDTO,
 )
 
-COLUNAS = ["Nome", "Categoria", "Prateleira", "Estoque", "Mínimo", "Último valor pago", "Situação"]
-COL_NOME, COL_CATEGORIA, COL_PRATELEIRA, COL_ESTOQUE, COL_MINIMO, COL_VALOR, COL_SITUACAO = range(7)
+COLUNAS = ["Nome", "Categoria", "Prateleira", "Estoque", "Mínimo", "Custo", "Preço de venda", "Margem", "Situação"]
+(COL_NOME, COL_CATEGORIA, COL_PRATELEIRA, COL_ESTOQUE, COL_MINIMO,
+ COL_VALOR, COL_PRECO, COL_MARGEM, COL_SITUACAO) = range(9)
+COLUNAS_DINHEIRO = (COL_VALOR, COL_PRECO, COL_MARGEM)
 
 
 class ProdutosView(QWidget):
@@ -78,7 +89,6 @@ class ProdutosView(QWidget):
         cabecalho = QHBoxLayout()
         cabecalho.addLayout(bloco_titulo)
         cabecalho.addStretch(1)
-        cabecalho.addWidget(self._btn_novo, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         self._busca = QLineEdit()
         self._busca.setPlaceholderText("Buscar por nome, categoria ou prateleira…")
@@ -98,12 +108,15 @@ class ProdutosView(QWidget):
         cab.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         for coluna in (COL_ESTOQUE, COL_MINIMO):  # números: título centralizado como os dados
             self._tabela.horizontalHeaderItem(coluna).setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._tabela.horizontalHeaderItem(COL_VALOR).setToolTip("Último valor pago por unidade (vem das compras)")
+        self._tabela.horizontalHeaderItem(COL_MARGEM).setToolTip("Margem sobre o custo: (preço − custo) ÷ custo")
         cab.setSectionResizeMode(COL_NOME, QHeaderView.ResizeMode.Stretch)
         cab.setSectionResizeMode(COL_CATEGORIA, QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(COL_PRATELEIRA, QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(COL_ESTOQUE, QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(COL_MINIMO, QHeaderView.ResizeMode.ResizeToContents)
-        cab.setSectionResizeMode(COL_VALOR, QHeaderView.ResizeMode.ResizeToContents)
+        for coluna in COLUNAS_DINHEIRO:
+            cab.setSectionResizeMode(coluna, QHeaderView.ResizeMode.ResizeToContents)
         cab.setSectionResizeMode(COL_SITUACAO, QHeaderView.ResizeMode.ResizeToContents)
 
         self._lbl_vazio = QLabel("Nenhum produto encontrado.")
@@ -124,8 +137,14 @@ class ProdutosView(QWidget):
         rodape.addWidget(self._lbl_total)
         rodape.addSpacing(16)
         rodape.addWidget(self._lbl_feedback, stretch=1)  # ocupa o espaço livre: texto nunca é cortado
-        rodape.addWidget(self._btn_editar)
-        rodape.addWidget(self._btn_excluir)
+
+        # Ações da linha selecionada no topo, junto do "Novo": tudo o que se faz
+        # com a lista fica num lugar só (Nielsen: consistência e padrões).
+        # O espaço afasta o "Excluir" do botão primário (prevenção de erros).
+        for botao in (self._btn_editar, self._btn_excluir):
+            cabecalho.addWidget(botao, alignment=Qt.AlignmentFlag.AlignVCenter)
+        cabecalho.addSpacing(12)
+        cabecalho.addWidget(self._btn_novo, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(32, 28, 32, 24)
@@ -175,6 +194,8 @@ class ProdutosView(QWidget):
                 str(p.quantidade),
                 str(p.quantidade_minima),
                 formatar_moeda(p.valor_unitario),
+                formatar_moeda(p.preco_venda) + ("  (manual)" if p.preco_venda_manual else ""),
+                formatar_percentual(p.margem),
                 "Estoque baixo" if p.estoque_baixo else "OK",
             ]
             for coluna, valor in enumerate(valores):
@@ -183,9 +204,12 @@ class ProdutosView(QWidget):
                     item.setData(Qt.ItemDataRole.UserRole, p.id_produto)
                 if coluna in (COL_ESTOQUE, COL_MINIMO):
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                elif coluna == COL_VALOR:
+                elif coluna in COLUNAS_DINHEIRO:
                     item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                if p.estoque_baixo and coluna in (COL_ESTOQUE, COL_SITUACAO):
+                negativa = coluna == COL_MARGEM and p.margem is not None and p.margem < 0
+                if negativa:
+                    item.setToolTip("Preço de venda abaixo do custo")
+                if negativa or (p.estoque_baixo and coluna in (COL_ESTOQUE, COL_SITUACAO)):
                     # O texto "Estoque baixo" já informa; cor e negrito só reforçam.
                     item.setForeground(QBrush(QColor(ERRO)))
                     fonte = QFont(item.font())
