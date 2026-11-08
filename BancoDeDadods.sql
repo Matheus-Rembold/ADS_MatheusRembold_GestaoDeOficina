@@ -42,7 +42,13 @@ CREATE TABLE produto (
     quantidade_minima INT NOT NULL DEFAULT 0 CHECK (quantidade_minima >= 0),
     -- valor pago por UNIDADE na compra mais recente (atualizado pelo RF09)
     valor_unitario    NUMERIC(12,4) CONSTRAINT ck_produto_valor_unitario CHECK (valor_unitario IS NULL OR valor_unitario >= 0),
-    criado_em         TIMESTAMP NOT NULL DEFAULT NOW()
+    criado_em         TIMESTAMP NOT NULL DEFAULT NOW(),
+    -- preço de venda por unidade: custo × 1,20 (markup) recalculado a cada
+    -- compra, ou definido à mão (preco_venda_manual = TRUE). Ficam no fim da
+    -- tabela para coincidir com o banco migrado (ALTER TABLE ADD COLUMN acrescenta no fim).
+    preco_venda        NUMERIC(10,2) CONSTRAINT ck_produto_preco_venda CHECK (preco_venda IS NULL OR preco_venda >= 0),
+    preco_venda_manual BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT ck_produto_preco_manual CHECK (NOT preco_venda_manual OR preco_venda IS NOT NULL)
 );
 CREATE UNIQUE INDEX uq_produto_nome ON produto (LOWER(nome));
 
@@ -112,7 +118,10 @@ CREATE TABLE agendamento (
     data_hora               TIMESTAMP NOT NULL,
     duracao_estimada_horas  NUMERIC(4,2),
     status                  VARCHAR(20) NOT NULL DEFAULT 'agendado'
-                                CHECK (status IN ('agendado', 'cancelado', 'concluido'))
+                                CHECK (status IN ('agendado', 'cancelado', 'concluido')),
+    -- OS gerada a partir do agendamento (conversão); se a OS for excluída, o vínculo some
+    id_ordem_servico        INT UNIQUE REFERENCES ordem_servico(id_ordem_servico) ON DELETE SET NULL,
+    CONSTRAINT ck_agendamento_duracao CHECK (duracao_estimada_horas IS NULL OR duracao_estimada_horas > 0)
 );
 
 -- ------------------------------------------------------------
@@ -176,6 +185,8 @@ CREATE INDEX idx_agendamento_data       ON agendamento(data_hora);
 CREATE INDEX idx_movimentacao_produto   ON movimentacao_estoque(id_produto);
 CREATE INDEX idx_movimentacao_data      ON movimentacao_estoque(data_movimentacao);
 CREATE INDEX idx_os_produto_produto     ON os_produto(id_produto);
+-- RF06: os relatórios filtram as OS entregues pelo período de entrega
+CREATE INDEX idx_os_entregue_em         ON ordem_servico(entregue_em);
 
 
 
@@ -267,6 +278,10 @@ FROM (SELECT DISTINCT ON (id_produto) id_produto, valor, quantidade
       FROM movimentacao_estoque WHERE tipo = 'compra'
       ORDER BY id_produto, data_movimentacao DESC, id_movimentacao_estoque DESC) m
 WHERE m.id_produto = p.id_produto;
+
+-- preço de venda automático = custo × 1,20 (markup de 20%); sem custo fica vazio
+UPDATE produto SET preco_venda = ROUND(valor_unitario * 1.20, 2)
+WHERE valor_unitario IS NOT NULL;
 
 -- custo_unitario das peças já lançadas nas OS (cópia do valor do produto)
 UPDATE os_produto op SET custo_unitario = p.valor_unitario
