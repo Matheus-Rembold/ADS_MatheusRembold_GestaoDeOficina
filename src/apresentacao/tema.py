@@ -25,6 +25,16 @@ ERRO_FUNDO = "#FFF0F0"
 ERRO_BORDA = "#F5B7B7"
 SUCESSO = "#2B8A3E"
 
+# --- Gráficos (RF06) ----------------------------------------------------
+# Entradas x Saídas: laranja x grafite médio. Validado em 07/11/2026 (OKLab +
+# simulação de daltonismo, Machado 2009): diferença ΔE de 22,9 normal,
+# 13,7 protanopia, 19,6 deuteranopia e 27,3 tritanopia (meta >= 8); contraste
+# com o fundo branco >= 3:1 (WCAG 1.4.11). Se trocar estas cores, revalide.
+COR_ENTRADAS = LARANJA
+COR_SAIDAS = TEXTO_SUAVE
+COR_SERIE_UNICA = LARANJA      # ranking de serviços (uma série só)
+COR_GRADE = "#E9ECEF"          # linhas de grade: discretas, não competem com os dados
+
 LARGURA_BARRA_LATERAL = 230
 
 
@@ -48,6 +58,27 @@ def estilo_global() -> str:
         background: {ERRO_FUNDO}; color: {ERRO};
         border: 1px solid {ERRO_BORDA}; border-radius: 6px; padding: 8px 10px;
     }}
+    /* Margem sobre o custo / preço abaixo do custo: o texto já diz o problema,
+       a cor só reforça (Nielsen: visibilidade do estado do sistema). */
+    QLabel#margem {{ font-weight: 600; }}
+    QLabel#margem[negativa="true"], QLabel#subtitulo[alerta="true"] {{ color: {ERRO}; font-weight: 600; }}
+    QLineEdit:read-only {{ background: #F1F3F5; color: {TEXTO_SUAVE}; }}
+
+    /* Relatórios (RF06): cartões de resumo e área dos gráficos */
+    QFrame#cartao, QFrame#painelGrafico {{
+        background: {SUPERFICIE}; border: 1px solid {BORDA}; border-radius: 8px;
+    }}
+    QLabel#cartaoTitulo {{ color: {TEXTO_SUAVE}; font-weight: 600; }}
+    QLabel#cartaoValor {{ font-size: 16pt; font-weight: 700; }}
+    QLabel#cartaoValor[negativa="true"] {{ color: {ERRO}; }}
+    QLabel#cartaoDetalhe {{ color: {TEXTO_SUAVE}; font-size: 9pt; }}
+    QLabel#cartaoDetalhe[alerta="true"] {{ color: {ERRO}; font-weight: 600; }}
+    QTabWidget::pane {{ border: none; }}
+    QTabBar::tab {{
+        background: transparent; color: {TEXTO_SUAVE}; padding: 8px 14px;
+        border-bottom: 2px solid transparent; font-weight: 600;
+    }}
+    QTabBar::tab:selected {{ color: {TEXTO}; border-bottom: 2px solid {LARANJA}; }}
 
     QFrame#barraLateral {{ background: {GRAFITE}; }}
     QLabel#marca {{ color: {LARANJA}; font-size: 22pt; font-weight: 800; }}
@@ -64,11 +95,13 @@ def estilo_global() -> str:
     }}
     QListWidget#menu::item:disabled {{ color: #5F666D; }}
 
-    QLineEdit, QPlainTextEdit {{
+    QLineEdit, QPlainTextEdit, QDateEdit, QTimeEdit, QDoubleSpinBox {{
         background: {SUPERFICIE}; border: 1px solid {BORDA}; border-radius: 6px;
         padding: 7px 10px; selection-background-color: {LARANJA};
     }}
-    QLineEdit:focus, QPlainTextEdit:focus {{ border: 1px solid {LARANJA}; }}
+    QLineEdit:focus, QPlainTextEdit:focus, QDateEdit:focus, QTimeEdit:focus, QDoubleSpinBox:focus {{
+        border: 1px solid {LARANJA};
+    }}
     QLineEdit:disabled, QPlainTextEdit:disabled {{ color: #868E96; background: #F1F3F5; }}
 
     QComboBox {{

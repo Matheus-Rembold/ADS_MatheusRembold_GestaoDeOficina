@@ -267,15 +267,21 @@ class OrdensServicoView(QWidget):
         if o is None:
             return
         menu = QMenu(self)
+        # Guardamos a ligação ação -> situação em Python (não em QAction.setData):
+        # assim não depende de como o Qt devolve o enum, em nenhuma versão/sistema.
+        destinos = {}
         for destino in o.transicoes:
-            acao = menu.addAction(destino.rotulo)
-            acao.setData(destino)
+            destinos[menu.addAction(destino.rotulo)] = destino
         escolhida = menu.exec(self._btn_status.mapToGlobal(self._btn_status.rect().bottomLeft()))
-        if escolhida is None:
+        if escolhida is None or escolhida not in destinos:
             return
-        self._mudar_status(o, escolhida.data())
+        try:
+            self._mudar_status(o, destinos[escolhida])
+        except Exception as erro:  # noqa: BLE001  (nunca falhar em silêncio dentro de um slot)
+            erro_inesperado(self, erro, "Não foi possível alterar a situação da OS.")
 
     def _mudar_status(self, o: OrdemServicoDTO, destino: StatusOrdemServico) -> None:
+        destino = StatusOrdemServico(destino)
         if o.status is StatusOrdemServico.ORCAMENTO and destino is StatusOrdemServico.ANDAMENTO:
             texto = "As peças da OS vão sair do estoque agora."
         elif destino is StatusOrdemServico.ORCAMENTO:

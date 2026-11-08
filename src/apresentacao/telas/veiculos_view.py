@@ -76,7 +76,6 @@ class VeiculosView(QWidget):
         cabecalho = QHBoxLayout()
         cabecalho.addLayout(bloco_titulo)
         cabecalho.addStretch(1)
-        cabecalho.addWidget(self._btn_novo, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         self._busca = QLineEdit()
         self._busca.setPlaceholderText("Buscar por placa, modelo, marca ou nome do cliente…")
@@ -120,9 +119,14 @@ class VeiculosView(QWidget):
         rodape.addWidget(self._lbl_total)
         rodape.addSpacing(16)
         rodape.addWidget(self._lbl_feedback, stretch=1)  # ocupa o espaço livre: texto nunca é cortado
-        rodape.addWidget(self._btn_historico)
-        rodape.addWidget(self._btn_editar)
-        rodape.addWidget(self._btn_excluir)
+
+        # Ações da linha selecionada no topo, junto do "Novo": tudo o que se faz
+        # com a lista fica num lugar só (Nielsen: consistência e padrões).
+        # O espaço afasta o "Excluir" do botão primário (prevenção de erros).
+        for botao in (self._btn_historico, self._btn_editar, self._btn_excluir):
+            cabecalho.addWidget(botao, alignment=Qt.AlignmentFlag.AlignVCenter)
+        cabecalho.addSpacing(12)
+        cabecalho.addWidget(self._btn_novo, alignment=Qt.AlignmentFlag.AlignVCenter)
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(32, 28, 32, 24)

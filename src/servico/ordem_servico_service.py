@@ -8,9 +8,14 @@ Regras principais
 -----------------
 - Obrigatórios: cliente, veículo (que pertença ao cliente), quilometragem
   (inteiro >= 0), descrição do problema e tipo de serviço.
-- Peças: cada produto aparece uma vez por OS; quantidade inteira > 0; o preço
-  cobrado é digitado em cada OS (>= 0). O custo (último valor pago) é copiado
-  do produto no momento em que a peça entra na OS.
+- Peças: cada produto aparece uma vez por OS; quantidade inteira > 0.
+- Preço da peça: vem do PREÇO DE VENDA do produto (custo + markup, ver
+  src/servico/precificacao.py). A tela já o pré-preenche e o usuário pode
+  alterá-lo (desconto, caso especial). Se o preço vier vazio, o serviço usa o
+  preço já gravado no item (edição) ou o preço de venda do produto; sem
+  nenhum dos dois, é erro de validação. O preço e o custo (último valor pago)
+  são COPIADOS para os_produto: mudar o produto depois não altera OS antigas.
+- Preço abaixo do custo NÃO bloqueia: é só um aviso (pecas_abaixo_do_custo).
 - Valor total = soma(quantidade x preço) + mão de obra (calculado, não guardado).
 - Estoque: "orçamento" NÃO consome. Ao passar a "andamento" as peças saem do
   estoque; se faltar saldo, a mudança é bloqueada e as peças são listadas.
@@ -61,7 +66,7 @@ class ItemOS:
 
     id_produto: int
     quantidade: int
-    preco_unitario: Numero
+    preco_unitario: Optional[Numero] = None  # vazio = usar o preço de venda do produto
 
 
 class OrdemServicoService:
@@ -82,7 +87,13 @@ class OrdemServicoService:
         valor_mao_de_obra: Optional[Numero] = None,
         itens: Sequence[ItemOS] = (),
         status: Union[StatusOrdemServico, str] = StatusOrdemServico.ORCAMENTO,
+        confirmar: bool = True,
     ) -> OrdemServico:
+        """
+        confirmar=False deixa a transação ABERTA (só flush): quem chamou fecha com
+        commit/rollback. Usado pelo RF05 para criar a OS e marcar o agendamento
+        como concluído na MESMA transação.
+        """
         erros: List[str] = []
         status_enum = self._validar_status_inicial(status, erros)
         dados = self._validar_dados(
@@ -103,6 +114,7 @@ class OrdemServicoService:
             status=status_enum,
         )
         produtos = self._travar_produtos([i.id_produto for i in dados["itens"]])
+        dados["itens"] = self._resolver_precos(dados["itens"], produtos, {})
         for item in dados["itens"]:
             os_.os_produtos.append(
                 OsProduto(
@@ -115,6 +127,8 @@ class OrdemServicoService:
         if status_enum.consome_estoque:
             self._baixar_estoque({i.id_produto: i.quantidade for i in dados["itens"]}, produtos)
         self._repo.adicionar(os_)
+        if not confirmar:
+            return os_
         self._confirmar()
         return self._recarregar(os_.id_ordem_servico)
 
@@ -153,8 +167,11 @@ class OrdemServicoService:
             raise
 
         antigos: Dict[int, OsProduto] = {i.id_produto: i for i in os_.os_produtos}
-        novos = {i.id_produto: i for i in dados["itens"]}
-        produtos = self._travar_produtos(list(set(antigos) | set(novos)))
+        ids_novos = {i.id_produto for i in dados["itens"]}
+        produtos = self._travar_produtos(list(set(antigos) | ids_novos))
+        # Peça que já estava na OS mantém o preço gravado se a tela não mandar outro.
+        gravados = {p: linha.preco_unitario for p, linha in antigos.items()}
+        novos = {i.id_produto: i for i in self._resolver_precos(dados["itens"], produtos, gravados)}
 
         deltas: Dict[int, int] = {}
         for id_produto in set(antigos) | set(novos):
@@ -277,6 +294,36 @@ class OrdemServicoService:
             )
         return None
 
+    def pecas_abaixo_do_custo(
+        self, itens: Sequence[ItemOS], id_os: Optional[int] = None
+    ) -> List[str]:
+        """
+        Nomes das peças cujo preço ficaria ABAIXO DO CUSTO (não bloqueia: a tela
+        pede confirmação). O custo comparado é o mesmo que será gravado: o já
+        copiado na OS, para peças que já estavam nela, ou o custo atual do produto.
+        """
+        ids = [i.id_produto for i in itens if self._eh_inteiro(i.id_produto)]
+        produtos = self._repo.buscar_produtos(ids)
+        linhas = {}
+        if id_os is not None:
+            os_ = self._repo.buscar_por_id(id_os)
+            if os_ is not None:
+                linhas = {l.id_produto: l for l in os_.os_produtos}
+        nomes = []
+        for item in itens:
+            produto = produtos.get(item.id_produto)
+            if produto is None:
+                continue
+            linha = linhas.get(item.id_produto)
+            custo = linha.custo_unitario if linha is not None else produto.valor_unitario
+            if item.preco_unitario is not None:
+                preco = self._normalizar_valor(item.preco_unitario)
+            else:
+                preco = linha.preco_unitario if linha is not None else produto.preco_venda
+            if custo is not None and preco is not None and preco < custo:
+                nomes.append(produto.nome)
+        return sorted(nomes, key=str.lower)
+
     @staticmethod
     def transicoes_permitidas(os_: OrdemServico) -> List[StatusOrdemServico]:
         """Status para onde a OS pode ir agora, na ordem do ciclo de vida."""
@@ -354,8 +401,8 @@ class OrdemServicoService:
             if not self._eh_inteiro(item.quantidade) or not (0 < item.quantidade <= QUANTIDADE_MAXIMA):
                 erros.append(f"Peça {n}: a quantidade deve ser um inteiro entre 1 e {QUANTIDADE_MAXIMA}.")
                 continue
-            if item.preco_unitario is None:
-                erros.append(f"Peça {n}: o preço é obrigatório.")
+            if item.preco_unitario is None:  # resolvido depois, com o produto travado
+                itens_ok.append(ItemOS(item.id_produto, item.quantidade, None))
                 continue
             preco = self._normalizar_valor(item.preco_unitario)
             if preco is None:
@@ -419,6 +466,34 @@ class OrdemServicoService:
                 "Produto(s) inexistente(s): " + ", ".join(str(i) for i in faltando) + "."
             )
         return produtos
+
+    def _resolver_precos(
+        self, itens: Sequence[ItemOS], produtos: dict, gravados: Dict[int, Decimal]
+    ) -> List[ItemOS]:
+        """
+        Preenche o preço das peças que vieram sem preço: primeiro o já gravado na
+        OS (edição), depois o preço de venda do produto. Sem nenhum dos dois, a
+        operação é recusada e nada é gravado.
+        """
+        finais: List[ItemOS] = []
+        erros: List[str] = []
+        for item in itens:
+            preco = item.preco_unitario
+            if preco is None:
+                preco = gravados.get(item.id_produto)
+            if preco is None:
+                preco = produtos[item.id_produto].preco_venda
+            if preco is None:
+                erros.append(
+                    f"“{produtos[item.id_produto].nome}”: informe o preço; o produto ainda "
+                    "não tem preço de venda (registre uma compra ou defina o preço no cadastro)."
+                )
+                continue
+            finais.append(ItemOS(item.id_produto, item.quantidade, preco))
+        if erros:
+            self._session.rollback()  # libera as travas
+            raise ValidacaoError(erros)
+        return finais
 
     def _baixar_estoque(self, quantidades: Dict[int, int], produtos: dict) -> None:
         self._ajustar_estoque(quantidades, produtos, sinal=-1)

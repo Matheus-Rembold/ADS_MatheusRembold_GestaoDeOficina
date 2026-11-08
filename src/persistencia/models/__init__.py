@@ -4,7 +4,7 @@ from src.persistencia.models.produto import Produto
 from src.persistencia.models.nota_fiscal import NotaFiscal
 from src.persistencia.models.ordem_servico import OrdemServico, StatusOrdemServico
 from src.persistencia.models.os_produto import OsProduto
-from src.persistencia.models.agendamento import Agendamento
+from src.persistencia.models.agendamento import Agendamento, StatusAgendamento
 from src.persistencia.models.movimentacao_estoque import MovimentacaoEstoque, TipoMovimentacao
 from src.persistencia.models.notificacao import Notificacao
 
@@ -17,6 +17,7 @@ __all__ = [
     "StatusOrdemServico",
     "OsProduto",
     "Agendamento",
+    "StatusAgendamento",
     "MovimentacaoEstoque",
     "TipoMovimentacao",
     "Notificacao",
