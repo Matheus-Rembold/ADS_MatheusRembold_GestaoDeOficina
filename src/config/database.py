@@ -8,23 +8,34 @@ para que nenhuma outra camada do sistema precise saber como a conexão
 import os
 
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-# Em produção, estas variáveis vêm do arquivo .env (ver .env.example).
-# Nunca deixe credenciais reais commitadas no código.
+from src.config.ambiente import carregar_env, variavel_booleana
+
+# As variáveis vêm do arquivo .env (ver .env.example), lido da raiz do projeto
+# ou da pasta do Camaro.exe. NUNCA há senha escrita no código.
+carregar_env()
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "camaro_db")
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "masterkey")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
-DATABASE_URL = (
-    f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+# URL.create monta a conexão com segurança: uma senha com @, : ou / não
+# quebra a URL (com f-string, quebraria).
+DATABASE_URL = URL.create(
+    "postgresql+psycopg2",
+    username=DB_USER,
+    password=DB_PASSWORD,
+    host=DB_HOST,
+    port=int(DB_PORT),
+    database=DB_NAME,
 )
 
-# echo=True imprime todo SQL gerado no console — útil durante o
-# desenvolvimento, deve ser desligado (False) na versão empacotada.
-engine = create_engine(DATABASE_URL, echo=True)
+# DB_ECHO=true no .env imprime todo o SQL no console (útil para depurar).
+# Padrão desligado: no executável não há console.
+engine = create_engine(DATABASE_URL, echo=variavel_booleana("DB_ECHO", False))
 
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 

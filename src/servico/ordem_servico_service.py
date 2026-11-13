@@ -50,6 +50,7 @@ from src.servico.excecoes import (
     RegistroNaoEncontradoError,
     ValidacaoError,
 )
+from src.servico.paginacao import POR_PAGINA, Pagina, montar_pagina
 
 QUILOMETRAGEM_MAXIMA = 10_000_000
 QUANTIDADE_MAXIMA = 1_000_000
@@ -273,6 +274,25 @@ class OrdemServicoService:
         self, termo: str = "", status: Optional[StatusOrdemServico] = None
     ) -> List[OrdemServico]:
         return self._repo.listar((termo or "").strip(), status)
+
+    def listar_pagina(
+        self,
+        termo: str = "",
+        status: Optional[StatusOrdemServico] = None,
+        pagina: int = 1,
+        por_pagina: int = POR_PAGINA,
+    ) -> Pagina:
+        """
+        OS de 50 em 50, da mais recente para a mais antiga. O resumo traz o
+        valor total de TODAS as OS do filtro (somado no banco), para o rodapé
+        continuar mostrando o total listado e não só o da página.
+        """
+        termo = (termo or "").strip()
+        return montar_pagina(
+            self._repo.contar(termo, status), pagina,
+            lambda limite, desloc: self._repo.listar_pagina(termo, status, limite, desloc), por_pagina,
+            resumo={"valor_total": self._repo.somar_total(termo, status)},
+        )
 
     def listar_por_veiculo(self, id_veiculo: int) -> List[OrdemServico]:
         return self._repo.listar_por_veiculo(id_veiculo)

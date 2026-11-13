@@ -32,6 +32,7 @@ from src.servico.excecoes import (
     ValidacaoError,
 )
 from src.servico.validadores import normalizar_placa, placa_valida
+from src.servico.paginacao import POR_PAGINA, Pagina, montar_pagina
 
 ANO_MINIMO = 1900
 
@@ -131,6 +132,14 @@ class VeiculoService:
 
     def listar(self) -> List[Veiculo]:
         return self._repo.listar_todos()
+
+    def listar_pagina(self, termo: str = "", pagina: int = 1, por_pagina: int = POR_PAGINA) -> Pagina:
+        """Busca por placa, modelo, marca ou nome do cliente, de 50 em 50."""
+        termo = (termo or "").strip()
+        return montar_pagina(
+            self._repo.contar(termo), pagina,
+            lambda limite, desloc: self._repo.listar_pagina(termo, limite, desloc), por_pagina,
+        )
 
     def listar_por_cliente(self, id_cliente: int) -> List[Veiculo]:
         return self._repo.listar_por_cliente(id_cliente)

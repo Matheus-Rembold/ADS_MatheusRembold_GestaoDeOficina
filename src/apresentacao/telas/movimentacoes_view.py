@@ -33,7 +33,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.apresentacao.componentes import aviso, erro_inesperado, formatar_moeda  # noqa: F401 (reexporta)
+from src.apresentacao.componentes import (  # noqa: F401 (reexporta)
+    BarraPaginacao,
+    aviso,
+    erro_inesperado,
+    formatar_moeda,
+    preenchendo_tabela,
+    texto_contagem,
+)
 from src.apresentacao.telas.movimentacao_dialog import MovimentacaoDialog
 from src.apresentacao.tema import ERRO, SUCESSO
 from src.controle.movimentacao_estoque_controller import (
@@ -68,6 +75,7 @@ class MovimentacoesView(QWidget):
         super().__init__(parent)
         self.setObjectName("pagina")
         self._controller = controller or MovimentacaoEstoqueController()
+        self._pagina = 1  # paginação: 50 por vez
 
         # Espera o usuário parar de digitar antes de consultar o banco.
         self._timer_busca = QTimer(self, singleShot=True, interval=250)
@@ -148,10 +156,12 @@ class MovimentacoesView(QWidget):
         self._lbl_feedback = QLabel()
         self._lbl_feedback.setObjectName("feedbackOk")
 
+        self._paginacao = BarraPaginacao()
         rodape = QHBoxLayout()
         rodape.addWidget(self._lbl_total)
         rodape.addSpacing(16)
         rodape.addWidget(self._lbl_feedback, stretch=1)  # ocupa o espaço livre: texto nunca é cortado
+        rodape.addWidget(self._paginacao)
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(32, 28, 32, 24)
@@ -165,9 +175,11 @@ class MovimentacoesView(QWidget):
     def _conectar_sinais(self) -> None:
         self._btn_novo.clicked.connect(self._nova)
         self._busca.textChanged.connect(lambda _texto: self._timer_busca.start())
-        self._timer_busca.timeout.connect(self.recarregar)
-        self._filtro_tipo.currentIndexChanged.connect(lambda _i: self.recarregar())
-        self._filtro_periodo.currentIndexChanged.connect(lambda _i: self.recarregar())
+        # busca ou filtro novo sempre volta para a página 1
+        self._timer_busca.timeout.connect(lambda: self.recarregar(pagina=1))
+        self._filtro_tipo.currentIndexChanged.connect(lambda _i: self.recarregar(pagina=1))
+        self._filtro_periodo.currentIndexChanged.connect(lambda _i: self.recarregar(pagina=1))
+        self._paginacao.pagina_pedida.connect(lambda p: self.recarregar(pagina=p))
         self._timer_feedback.timeout.connect(lambda: self._lbl_feedback.setText(""))
 
     # ------------------------------------------------------------------
@@ -178,18 +190,36 @@ class MovimentacoesView(QWidget):
         super().showEvent(evento)
         self.recarregar()
 
-    def recarregar(self) -> None:
+    def recarregar(self, pagina: Optional[int] = None) -> None:
+        if pagina is not None:
+            self._pagina = pagina
         inicio, fim = intervalo_do_periodo(self._filtro_periodo.currentText())
         try:
-            movimentacoes = self._controller.listar(
-                self._busca.text(), self._filtro_tipo.currentData(), inicio, fim
+            resultado = self._controller.listar_pagina(
+                self._busca.text(), self._filtro_tipo.currentData(), inicio, fim, self._pagina
             )
         except Exception as erro:  # noqa: BLE001
             erro_inesperado(self, erro, "Não foi possível carregar as movimentações.")
             return
-        self._preencher_tabela(movimentacoes)
+        self._pagina = resultado.pagina
+        self._preencher_tabela(list(resultado.itens))
+        # somas do filtro INTEIRO (calculadas no banco), não só da página
+        compras = resultado.resumo.get(TipoMovimentacao.COMPRA, Decimal("0"))
+        vendas = resultado.resumo.get(TipoMovimentacao.VENDA_AVULSA, Decimal("0"))
+        partes = [texto_contagem(resultado, "movimentação", "movimentações")]
+        if compras:
+            partes.append(f"compras: {formatar_moeda(compras)}")
+        if vendas:
+            partes.append(f"vendas avulsas: {formatar_moeda(vendas)}")
+        self._lbl_total.setText("  •  ".join(partes))
+        self._paginacao.atualizar(resultado)
 
     def _preencher_tabela(self, movimentacoes: List[MovimentacaoDTO]) -> None:
+        # Ajuste de colunas desligado durante o preenchimento (evita o travamento quadrático).
+        with preenchendo_tabela(self._tabela):
+            self._preencher_tabela_linhas(movimentacoes)
+
+    def _preencher_tabela_linhas(self, movimentacoes: List[MovimentacaoDTO]) -> None:
         self._tabela.setRowCount(len(movimentacoes))
         for linha, m in enumerate(movimentacoes):
             sinal = f"{m.quantidade:+d}".replace("-", "−")  # −4 em vez de -4
@@ -221,18 +251,6 @@ class MovimentacoesView(QWidget):
         self._tabela.setVisible(tem_dados)
         self._lbl_vazio.setVisible(not tem_dados)
 
-        total = "1 movimentação" if len(movimentacoes) == 1 else f"{len(movimentacoes)} movimentações"
-        compras = sum((m.valor for m in movimentacoes
-                       if m.tipo is TipoMovimentacao.COMPRA and m.valor is not None), Decimal("0"))
-        vendas = sum((m.valor for m in movimentacoes
-                      if m.tipo is TipoMovimentacao.VENDA_AVULSA and m.valor is not None), Decimal("0"))
-        partes = [total]
-        if compras:
-            partes.append(f"compras: {formatar_moeda(compras)}")
-        if vendas:
-            partes.append(f"vendas avulsas: {formatar_moeda(vendas)}")
-        self._lbl_total.setText("  •  ".join(partes))
-
     def _mostrar_feedback(self, texto: str) -> None:
         self._lbl_feedback.setText(texto)
         self._timer_feedback.start()
@@ -251,7 +269,7 @@ class MovimentacoesView(QWidget):
             self._filtro_periodo.setCurrentIndex(0)
             for campo in (self._busca, self._filtro_tipo, self._filtro_periodo):
                 campo.blockSignals(False)
-            self.recarregar()
+            self.recarregar(pagina=1)
             r = dialogo.resultado
             sinal = f"{r.quantidade:+d}".replace("-", "−")
             self._mostrar_feedback(f"{r.tipo.rotulo} de “{r.nome_produto}” registrada ({sinal}).")

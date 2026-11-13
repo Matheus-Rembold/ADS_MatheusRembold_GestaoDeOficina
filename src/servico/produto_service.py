@@ -31,6 +31,7 @@ from src.servico.excecoes import (
     ValidacaoError,
 )
 from src.servico.precificacao import recalcular_preco_automatico
+from src.servico.paginacao import POR_PAGINA, Pagina, montar_pagina
 
 QUANTIDADE_MINIMA_MAXIMA = 1_000_000
 VALOR_MAXIMO = Decimal("99999999.99")  # limite do NUMERIC(10,2)
@@ -134,6 +135,19 @@ class ProdutoService:
 
     def listar(self) -> List[Produto]:
         return self._repo.listar_todos()
+
+    def listar_pagina(self, termo: str = "", pagina: int = 1, por_pagina: int = POR_PAGINA) -> Pagina:
+        """
+        Busca por nome, categoria ou prateleira, de 50 em 50. O resumo traz
+        quantos produtos do filtro INTEIRO estão com estoque baixo (HU09), não
+        só os da página.
+        """
+        termo = (termo or "").strip()
+        return montar_pagina(
+            self._repo.contar(termo), pagina,
+            lambda limite, desloc: self._repo.listar_pagina(termo, limite, desloc), por_pagina,
+            resumo={"estoque_baixo": self._repo.contar_estoque_baixo(termo)},
+        )
 
     # ------------------------------------------------------------------
     # Internos

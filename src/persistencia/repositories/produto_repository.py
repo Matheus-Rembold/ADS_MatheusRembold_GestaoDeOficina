@@ -12,6 +12,7 @@ from sqlalchemy import exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from src.persistencia.models import MovimentacaoEstoque, OsProduto, Produto
+from src.persistencia.repositories import paginacao
 
 
 class ProdutoRepository:
@@ -66,6 +67,36 @@ class ProdutoRepository:
     def listar_todos(self) -> List[Produto]:
         stmt = select(Produto).order_by(Produto.nome)
         return list(self._session.scalars(stmt).all())
+
+    # --- paginação (09/11/2026) ---
+    @staticmethod
+    def _consulta(termo: str = ""):
+        stmt = select(Produto)
+        if termo:
+            stmt = stmt.where(
+                or_(
+                    Produto.nome.icontains(termo, autoescape=True),
+                    Produto.categoria.icontains(termo, autoescape=True),
+                    Produto.prateleira.icontains(termo, autoescape=True),
+                )
+            )
+        return stmt
+
+    def contar(self, termo: str = "") -> int:
+        return paginacao.contar(self._session, self._consulta(termo))
+
+    def contar_estoque_baixo(self, termo: str = "") -> int:
+        """Quantos produtos do filtro (todas as páginas) estão abaixo do mínimo (HU09)."""
+        return paginacao.contar(
+            self._session, self._consulta(termo).where(Produto.quantidade < Produto.quantidade_minima)
+        )
+
+    def listar_pagina(self, termo: str, limite: int, deslocamento: int) -> List[Produto]:
+        return paginacao.buscar_pagina(
+            self._session, self._consulta(termo),
+            ordem=(Produto.nome, Produto.id_produto),
+            limite=limite, deslocamento=deslocamento,
+        )
 
     # ------------------------------------------------------------------
     # Consultas de apoio às regras de negócio (a decisão fica no serviço)

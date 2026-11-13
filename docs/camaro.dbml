@@ -1,0 +1,111 @@
+// DER do Camaro — gerado a partir do BancoDeDadods.sql (08/11/2026).
+// Cole em https://dbdiagram.io para gerar a imagem da seção 2.3 do DVP.
+
+Project Camaro {
+  database_type: 'PostgreSQL'
+  Note: 'Sistema de gerenciamento de oficina mecânica'
+}
+
+Table cliente {
+  id_cliente serial [pk]
+  nome varchar(150) [not null]
+  idade smallint
+  cpf varchar(14) [not null, unique, note: 'identificador único; dígitos verificadores validados']
+  contato varchar(20) [not null, note: 'pode se repetir']
+  endereco varchar(255)
+  criado_em timestamp [not null, default: `now()`]
+}
+
+Table veiculo {
+  id_veiculo serial [pk]
+  id_cliente int [not null, ref: > cliente.id_cliente]
+  modelo varchar(100) [not null]
+  marca varchar(100) [not null]
+  ano smallint
+  motor varchar(50)
+  placa varchar(10) [not null, unique]
+  criado_em timestamp [not null, default: `now()`]
+}
+
+Table produto {
+  id_produto serial [pk]
+  nome varchar(150) [not null, note: 'único sem diferenciar maiúsculas (índice em LOWER(nome))']
+  categoria varchar(100)
+  prateleira varchar(50)
+  quantidade int [not null, default: 0, note: '>= 0; alterada pelo estoque (RF09) e pelas OS (RF04)']
+  quantidade_minima int [not null, default: 0, note: 'alerta de estoque baixo (HU09)']
+  valor_unitario numeric(12,4) [note: 'custo: valor pago por unidade na compra mais recente']
+  criado_em timestamp [not null, default: `now()`]
+  preco_venda numeric(10,2) [note: 'custo x 1,20 (markup) ou definido manualmente']
+  preco_venda_manual boolean [not null, default: false]
+}
+
+Table nota_fiscal {
+  id_nota_fiscal serial [pk]
+  numero varchar(50)
+  chave_acesso varchar(60)
+  status varchar(20) [not null, default: 'pendente', note: 'pendente | emitida | falha']
+  emitida_em timestamp
+}
+
+Table ordem_servico {
+  id_ordem_servico serial [pk]
+  id_cliente int [not null, ref: > cliente.id_cliente]
+  id_veiculo int [not null, ref: > veiculo.id_veiculo]
+  id_nota_fiscal int [unique, ref: - nota_fiscal.id_nota_fiscal, note: 'uma nota por OS']
+  descricao_problema text
+  quilometragem int
+  tipo_servico varchar(150)
+  valor_mao_de_obra numeric(10,2) [not null, default: 0]
+  status varchar(25) [not null, default: 'orcamento', note: 'orcamento | andamento | pronto | aguardando_pagamento | entregue']
+  criado_em timestamp [not null, default: `now()`]
+  atualizado_em timestamp [not null, default: `now()`]
+  entregue_em timestamp [note: 'preenchido se, e somente se, status = entregue']
+
+  indexes {
+    entregue_em [name: 'idx_os_entregue_em', note: 'relatórios por período (RF06)']
+  }
+}
+
+Table os_produto {
+  id_os_produto serial [pk]
+  id_ordem_servico int [not null, ref: > ordem_servico.id_ordem_servico]
+  id_produto int [not null, ref: > produto.id_produto]
+  quantidade_utilizada int [not null, note: '> 0']
+  preco_unitario numeric(10,2) [not null, note: 'preço cobrado (cópia do preço de venda, editável)']
+  custo_unitario numeric(12,4) [note: 'cópia do custo do produto no momento']
+
+  indexes {
+    (id_ordem_servico, id_produto) [unique]
+  }
+}
+
+Table agendamento {
+  id_agendamento serial [pk]
+  id_cliente int [not null, ref: > cliente.id_cliente]
+  id_veiculo int [not null, ref: > veiculo.id_veiculo]
+  tipo_servico varchar(150) [not null]
+  data_hora timestamp [not null]
+  duracao_estimada_horas numeric(4,2) [note: '> 0 (o sistema limita a 12 h)']
+  status varchar(20) [not null, default: 'agendado', note: 'agendado | cancelado | concluido']
+  id_ordem_servico int [unique, ref: - ordem_servico.id_ordem_servico, note: 'OS gerada pela conversão; ON DELETE SET NULL']
+}
+
+Table movimentacao_estoque {
+  id_movimentacao_estoque serial [pk]
+  id_produto int [not null, ref: > produto.id_produto]
+  tipo varchar(25) [not null, note: 'compra | doacao | devolucao_fornecedor | venda_avulsa | ajuste']
+  quantidade int [not null, note: 'com sinal: + entra, - sai; nunca zero']
+  valor numeric(10,2) [note: 'obrigatório em compra e venda por fora']
+  data_movimentacao date [not null]
+  fornecedor varchar(150) [note: 'obrigatório em compra e devolução']
+  observacao text [note: 'obrigatória no ajuste']
+}
+
+Table notificacao {
+  id_notificacao serial [pk]
+  id_ordem_servico int [not null, unique, ref: - ordem_servico.id_ordem_servico]
+  status_envio varchar(20) [not null, default: 'pendente', note: 'pendente | enviado | cancelado']
+  data_envio_prevista date
+  data_envio_real timestamp
+}

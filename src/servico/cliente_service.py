@@ -26,6 +26,7 @@ from src.servico.excecoes import (
     ValidacaoError,
 )
 from src.servico.validadores import cpf_valido, formatar_cpf, somente_digitos
+from src.servico.paginacao import POR_PAGINA, Pagina, montar_pagina
 
 
 class ClienteService:
@@ -115,6 +116,17 @@ class ClienteService:
 
     def listar(self) -> List[Cliente]:
         return self._repo.listar_todos()
+
+    def listar_pagina(self, termo: str = "", pagina: int = 1, por_pagina: int = POR_PAGINA) -> Pagina:
+        """Sem termo: todos. Com 11 dígitos: busca exata pelo CPF. Senão: parte do nome."""
+        termo = (termo or "").strip()
+        digitos = somente_digitos(termo)
+        cpf = formatar_cpf(digitos) if termo and len(digitos) == 11 else None
+        nome = "" if cpf else termo
+        return montar_pagina(
+            self._repo.contar(nome, cpf), pagina,
+            lambda limite, desloc: self._repo.listar_pagina(nome, cpf, limite, desloc), por_pagina,
+        )
 
     # ------------------------------------------------------------------
     # Internos

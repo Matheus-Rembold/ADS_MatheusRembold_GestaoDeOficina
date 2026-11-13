@@ -42,7 +42,13 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from src.apresentacao.componentes import confirmar, converter_valor, destacar, formatar_moeda
+from src.apresentacao.componentes import (
+    confirmar,
+    converter_valor,
+    destacar,
+    formatar_moeda,
+    preenchendo_tabela,
+)
 from src.apresentacao.tema import ERRO
 from src.controle.ordem_servico_controller import (
     ErroDeNegocio,
@@ -385,6 +391,11 @@ class OrdemServicoDialog(QDialog):
                 self._produto.setCurrentIndex(idx)  # carrega qtd/preço para editar
 
     def _redesenhar_pecas(self) -> None:
+        # Ajuste de colunas desligado durante o preenchimento (evita o travamento quadrático).
+        with preenchendo_tabela(self._tabela):
+            self._redesenhar_pecas_linhas()
+
+    def _redesenhar_pecas_linhas(self) -> None:
         self._tabela.blockSignals(True)
         ordenados = sorted(self._itens.items(), key=lambda kv: self._produtos[kv[0]].nome.lower())
         self._tabela.setRowCount(len(ordenados))

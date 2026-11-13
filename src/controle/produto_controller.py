@@ -24,6 +24,8 @@ from src.servico.precificacao import (  # noqa: F401
     margem_sobre_custo,
 )
 
+from src.servico.paginacao import POR_PAGINA, Pagina  # noqa: F401 (reexportado para a tela)
+
 # Reexportadas de propósito: a tela importa as exceções DAQUI.
 from src.servico.excecoes import (  # noqa: F401
     ErroDeNegocio,
@@ -80,6 +82,12 @@ class ProdutoController:
             servico = ProdutoService(session)
             produtos = servico.buscar(termo) if termo else servico.listar()
             return [ProdutoDTO.de_modelo(p) for p in produtos]
+
+    def listar_pagina(self, termo: str = "", pagina: int = 1) -> Pagina:
+        """Uma página (50) de produtos como DTOs; resumo["estoque_baixo"] vale para o filtro inteiro."""
+        with self._session_factory() as session:
+            resultado = ProdutoService(session).listar_pagina(termo, pagina)
+            return resultado.com_itens(ProdutoDTO.de_modelo(p) for p in resultado.itens)
 
     def obter(self, id_produto: int) -> ProdutoDTO:
         """Leitura fresca (levanta RegistroNaoEncontradoError se sumiu)."""

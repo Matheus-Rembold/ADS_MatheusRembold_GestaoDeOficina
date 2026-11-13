@@ -44,6 +44,7 @@ from src.servico.excecoes import (
     ValidacaoError,
 )
 from src.servico.precificacao import recalcular_preco_automatico
+from src.servico.paginacao import POR_PAGINA, Pagina, montar_pagina
 
 QUANTIDADE_MAXIMA = 1_000_000
 VALOR_MAXIMO = Decimal("99999999.99")  # limite do NUMERIC(10,2)
@@ -152,6 +153,25 @@ class MovimentacaoEstoqueService:
         data_fim: Optional[date] = None,
     ) -> List[MovimentacaoEstoque]:
         return self._repo.listar((termo or "").strip(), tipo, data_inicio, data_fim)
+
+    def listar_pagina(
+        self,
+        termo: str = "",
+        tipo: Optional[TipoMovimentacao] = None,
+        data_inicio: Optional[date] = None,
+        data_fim: Optional[date] = None,
+        pagina: int = 1,
+        por_pagina: int = POR_PAGINA,
+    ) -> Pagina:
+        """Mesmos filtros do listar(), mas de 50 em 50 (da mais recente para a mais antiga)."""
+        termo = (termo or "").strip()
+        return montar_pagina(
+            self._repo.contar(termo, tipo, data_inicio, data_fim), pagina,
+            lambda limite, desloc: self._repo.listar_pagina(termo, tipo, data_inicio, data_fim, limite, desloc),
+            por_pagina,
+            # totais do filtro inteiro (não só da página) para o rodapé
+            resumo=self._repo.somar_valores(termo, tipo, data_inicio, data_fim),
+        )
 
     # ------------------------------------------------------------------
     # Internos

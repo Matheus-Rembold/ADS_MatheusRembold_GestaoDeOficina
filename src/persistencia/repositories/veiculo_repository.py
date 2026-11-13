@@ -13,6 +13,7 @@ from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.persistencia.models import Agendamento, Cliente, OrdemServico, StatusOrdemServico, Veiculo
+from src.persistencia.repositories import paginacao
 
 
 class VeiculoRepository:
@@ -74,6 +75,32 @@ class VeiculoRepository:
             .order_by(Veiculo.placa)
         )
         return list(self._session.scalars(stmt).all())
+
+    # --- paginação (09/11/2026) ---
+    @staticmethod
+    def _consulta(termo: str = ""):
+        stmt = select(Veiculo).join(Veiculo.cliente)
+        if termo:
+            stmt = stmt.where(
+                or_(
+                    Veiculo.placa.icontains(termo, autoescape=True),
+                    Veiculo.modelo.icontains(termo, autoescape=True),
+                    Veiculo.marca.icontains(termo, autoescape=True),
+                    Cliente.nome.icontains(termo, autoescape=True),
+                )
+            )
+        return stmt
+
+    def contar(self, termo: str = "") -> int:
+        return paginacao.contar(self._session, self._consulta(termo))
+
+    def listar_pagina(self, termo: str, limite: int, deslocamento: int) -> List[Veiculo]:
+        return paginacao.buscar_pagina(
+            self._session, self._consulta(termo),
+            ordem=(Veiculo.placa, Veiculo.id_veiculo),
+            opcoes=(joinedload(Veiculo.cliente),),
+            limite=limite, deslocamento=deslocamento,
+        )
 
     def listar_por_cliente(self, id_cliente: int) -> List[Veiculo]:
         stmt = (

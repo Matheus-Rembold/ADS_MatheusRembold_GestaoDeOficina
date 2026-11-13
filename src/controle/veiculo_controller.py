@@ -17,6 +17,8 @@ from src.persistencia.models import OrdemServico, StatusOrdemServico, Veiculo
 from src.servico.cliente_service import ClienteService
 from src.servico.veiculo_service import VeiculoService
 
+from src.servico.paginacao import POR_PAGINA, Pagina  # noqa: F401 (reexportado para a tela)
+
 # Reexportadas de propósito: a tela importa as exceções DAQUI.
 from src.servico.excecoes import (  # noqa: F401
     ErroDeNegocio,
@@ -95,6 +97,12 @@ class VeiculoController:
             servico = VeiculoService(session)
             veiculos = servico.buscar(termo) if termo else servico.listar()
             return [VeiculoDTO.de_modelo(v) for v in veiculos]
+
+    def listar_pagina(self, termo: str = "", pagina: int = 1) -> Pagina:
+        """Uma página (50) de veículos como DTOs; mesma busca do listar()."""
+        with self._session_factory() as session:
+            resultado = VeiculoService(session).listar_pagina(termo, pagina)
+            return resultado.com_itens(VeiculoDTO.de_modelo(v) for v in resultado.itens)
 
     def obter(self, id_veiculo: int) -> VeiculoDTO:
         """Leitura fresca (levanta RegistroNaoEncontradoError se sumiu)."""

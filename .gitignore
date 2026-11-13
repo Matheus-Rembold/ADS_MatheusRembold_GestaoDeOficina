@@ -13,6 +13,7 @@ __pycache__/
 build/
 dist/
 *.spec
+!camaro.spec
 
 # Configurações de IDE
 .vscode/

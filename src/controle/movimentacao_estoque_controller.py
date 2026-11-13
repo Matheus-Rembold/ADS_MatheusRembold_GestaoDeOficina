@@ -19,6 +19,8 @@ from src.servico.movimentacao_estoque_service import MovimentacaoEstoqueService
 from src.servico.precificacao import preco_sugerido_divergente
 from src.servico.produto_service import ProdutoService
 
+from src.servico.paginacao import POR_PAGINA, Pagina  # noqa: F401 (reexportado para a tela)
+
 # Reexportadas de propósito: a tela importa tudo DAQUI, sem precisar
 # conhecer as camadas de serviço e de persistência (regra do README).
 from src.servico.excecoes import (  # noqa: F401
@@ -100,6 +102,21 @@ class MovimentacaoEstoqueController:
                 termo, tipo, data_inicio, data_fim
             )
             return [MovimentacaoDTO.de_modelo(m) for m in movimentacoes]
+
+    def listar_pagina(
+        self,
+        termo: str = "",
+        tipo: Optional[TipoMovimentacao] = None,
+        data_inicio: Optional[date] = None,
+        data_fim: Optional[date] = None,
+        pagina: int = 1,
+    ) -> Pagina:
+        """Uma página (50) de movimentações como DTOs, com os mesmos filtros do listar()."""
+        with self._session_factory() as session:
+            resultado = MovimentacaoEstoqueService(session).listar_pagina(
+                termo, tipo, data_inicio, data_fim, pagina
+            )
+            return resultado.com_itens(MovimentacaoDTO.de_modelo(m) for m in resultado.itens)
 
     def listar_produtos(self) -> List[ProdutoOpcaoDTO]:
         """Produtos em ordem alfabética, com o saldo atual, para o campo 'Produto'."""

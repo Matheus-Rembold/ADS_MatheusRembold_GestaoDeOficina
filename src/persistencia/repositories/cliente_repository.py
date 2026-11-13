@@ -18,6 +18,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session, selectinload
 
 from src.persistencia.models import Agendamento, Cliente, OrdemServico, StatusOrdemServico, Veiculo
+from src.persistencia.repositories import paginacao
 
 
 class ClienteRepository:
@@ -72,6 +73,29 @@ class ClienteRepository:
             .order_by(Cliente.nome)
         )
         return list(self._session.scalars(stmt).all())
+
+    # ------------------------------------------------------------------
+    # Paginação (09/11/2026): filtro, contagem e uma página por vez
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _consulta(nome: str = "", cpf: Optional[str] = None):
+        stmt = select(Cliente)
+        if cpf is not None:
+            stmt = stmt.where(Cliente.cpf == cpf)
+        elif nome:
+            stmt = stmt.where(Cliente.nome.icontains(nome, autoescape=True))
+        return stmt
+
+    def contar(self, nome: str = "", cpf: Optional[str] = None) -> int:
+        return paginacao.contar(self._session, self._consulta(nome, cpf))
+
+    def listar_pagina(self, nome: str, cpf: Optional[str], limite: int, deslocamento: int) -> List[Cliente]:
+        return paginacao.buscar_pagina(
+            self._session, self._consulta(nome, cpf),
+            ordem=(Cliente.nome, Cliente.id_cliente),
+            opcoes=(selectinload(Cliente.veiculos),),  # para mostrar quantos veículos cada um tem
+            limite=limite, deslocamento=deslocamento,
+        )
 
     # ------------------------------------------------------------------
     # Consultas de apoio às regras de negócio (a decisão fica no serviço)

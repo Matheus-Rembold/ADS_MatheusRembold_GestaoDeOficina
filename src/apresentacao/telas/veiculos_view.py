@@ -28,7 +28,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.apresentacao.componentes import aviso, confirmar, erro_inesperado
+from src.apresentacao.componentes import (
+    BarraPaginacao,
+    aviso,
+    confirmar,
+    erro_inesperado,
+    preenchendo_tabela,
+    texto_contagem,
+)
 from src.apresentacao.telas.veiculo_dialog import VeiculoDialog
 from src.apresentacao.telas.veiculo_historico_dialog import VeiculoHistoricoDialog
 from src.controle.veiculo_controller import (
@@ -48,6 +55,7 @@ class VeiculosView(QWidget):
         super().__init__(parent)
         self.setObjectName("pagina")
         self._controller = controller or VeiculoController()
+        self._pagina = 1  # paginação: 50 por vez
 
         # Espera o usuário parar de digitar antes de consultar o banco.
         self._timer_busca = QTimer(self, singleShot=True, interval=250)
@@ -115,10 +123,12 @@ class VeiculosView(QWidget):
         self._btn_excluir = QPushButton("Excluir")
         self._btn_excluir.setObjectName("perigo")
 
+        self._paginacao = BarraPaginacao()
         rodape = QHBoxLayout()
         rodape.addWidget(self._lbl_total)
         rodape.addSpacing(16)
         rodape.addWidget(self._lbl_feedback, stretch=1)  # ocupa o espaço livre: texto nunca é cortado
+        rodape.addWidget(self._paginacao)
 
         # Ações da linha selecionada no topo, junto do "Novo": tudo o que se faz
         # com a lista fica num lugar só (Nielsen: consistência e padrões).
@@ -143,7 +153,8 @@ class VeiculosView(QWidget):
         self._btn_excluir.clicked.connect(self._excluir)
         self._btn_historico.clicked.connect(self._ver_historico)
         self._busca.textChanged.connect(lambda _texto: self._timer_busca.start())
-        self._timer_busca.timeout.connect(self.recarregar)
+        self._timer_busca.timeout.connect(lambda: self.recarregar(pagina=1))  # busca nova volta à página 1
+        self._paginacao.pagina_pedida.connect(lambda p: self.recarregar(pagina=p))
         self._timer_feedback.timeout.connect(lambda: self._lbl_feedback.setText(""))
         self._tabela.itemSelectionChanged.connect(self._atualizar_botoes)
         self._tabela.itemDoubleClicked.connect(lambda _item: self._editar())
@@ -156,17 +167,27 @@ class VeiculosView(QWidget):
         super().showEvent(evento)
         self.recarregar()
 
-    def recarregar(self, selecionar_id: Optional[int] = None) -> None:
+    def recarregar(self, selecionar_id: Optional[int] = None, pagina: Optional[int] = None) -> None:
         if selecionar_id is None:
             selecionar_id = self._id_selecionado()
+        if pagina is not None:
+            self._pagina = pagina
         try:
-            veiculos = self._controller.listar(self._busca.text())
+            resultado = self._controller.listar_pagina(self._busca.text(), self._pagina)
         except Exception as erro:  # noqa: BLE001
             erro_inesperado(self, erro, "Não foi possível carregar os veículos.")
             return
-        self._preencher_tabela(veiculos, selecionar_id)
+        self._pagina = resultado.pagina
+        self._preencher_tabela(list(resultado.itens), selecionar_id)
+        self._lbl_total.setText(texto_contagem(resultado, "veículo", "veículos"))
+        self._paginacao.atualizar(resultado)
 
     def _preencher_tabela(self, veiculos: List[VeiculoDTO], selecionar_id: Optional[int]) -> None:
+        # Ajuste de colunas desligado durante o preenchimento (evita o travamento quadrático).
+        with preenchendo_tabela(self._tabela):
+            self._preencher_tabela_linhas(veiculos, selecionar_id)
+
+    def _preencher_tabela_linhas(self, veiculos: List[VeiculoDTO], selecionar_id: Optional[int]) -> None:
         self._tabela.setRowCount(len(veiculos))
         linha_selecionada = -1
         for linha, v in enumerate(veiculos):
@@ -194,9 +215,6 @@ class VeiculosView(QWidget):
         tem_dados = bool(veiculos)
         self._tabela.setVisible(tem_dados)
         self._lbl_vazio.setVisible(not tem_dados)
-        self._lbl_total.setText(
-            "1 veículo" if len(veiculos) == 1 else f"{len(veiculos)} veículos"
-        )
         self._atualizar_botoes()
 
     def _id_selecionado(self) -> Optional[int]:
@@ -221,11 +239,12 @@ class VeiculosView(QWidget):
     def _novo(self) -> None:
         dialogo = VeiculoDialog(self._controller, parent=self)
         if dialogo.exec() == QDialog.DialogCode.Accepted and dialogo.resultado:
-            # Limpa a busca, senão o veículo novo poderia ficar escondido pelo filtro.
+            # Com paginação o veículo novo poderia cair em outra página: a busca
+            # passa a ser a placa dele, então ele aparece sozinho e selecionado.
             self._busca.blockSignals(True)
-            self._busca.clear()
+            self._busca.setText(dialogo.resultado.placa)
             self._busca.blockSignals(False)
-            self.recarregar(selecionar_id=dialogo.resultado.id_veiculo)
+            self.recarregar(selecionar_id=dialogo.resultado.id_veiculo, pagina=1)
             self._mostrar_feedback(f"Veículo {dialogo.resultado.placa} cadastrado com sucesso.")
 
     def _editar(self) -> None:

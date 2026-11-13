@@ -34,7 +34,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.apresentacao.componentes import aviso, confirmar, erro_inesperado
+from src.apresentacao.componentes import aviso, confirmar, erro_inesperado, preenchendo_tabela
 from src.apresentacao.telas.agendamento_dialog import AgendamentoDialog, ConverterEmOsDialog
 from src.apresentacao.tema import ERRO, LARANJA, LARANJA_SUAVE, SUCESSO, TEXTO_SUAVE
 from src.controle.agendamento_controller import (
@@ -231,6 +231,11 @@ class AgendamentosView(QWidget):
             self._calendario.setDateTextFormat(QDate(d.year, d.month, d.day), formato)
 
     def _preencher_dia(self, dia: date, selecionar: Optional[int]) -> None:
+        # Ajuste de colunas desligado durante o preenchimento (evita o travamento quadrático).
+        with preenchendo_tabela(self._tabela):
+            self._preencher_dia_linhas(dia, selecionar)
+
+    def _preencher_dia_linhas(self, dia: date, selecionar: Optional[int]) -> None:
         ativos = sum(1 for a in self._dtos if a.status is StatusAgendamento.AGENDADO)
         n = f"{ativos} agendamento" + ("" if ativos == 1 else "s")
         self._lbl_dia.setText(f"{DIAS[dia.weekday()].capitalize()}, {dia:%d/%m/%Y}")
@@ -266,6 +271,11 @@ class AgendamentosView(QWidget):
         self._atualizar_botoes()
 
     def _preencher_grade(self, grade: List[HoraDoDiaDTO]) -> None:
+        # Ajuste de colunas desligado durante o preenchimento (evita o travamento quadrático).
+        with preenchendo_tabela(self._grade):
+            self._preencher_grade_linhas(grade)
+
+    def _preencher_grade_linhas(self, grade: List[HoraDoDiaDTO]) -> None:
         self._grade.setRowCount(len(grade))
         for linha, h in enumerate(grade):
             if h.ocupacao >= LIMITE_SIMULTANEOS:

@@ -34,7 +34,15 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.apresentacao.componentes import aviso, confirmar, erro_inesperado, formatar_moeda
+from src.apresentacao.componentes import (
+    BarraPaginacao,
+    aviso,
+    confirmar,
+    erro_inesperado,
+    formatar_moeda,
+    preenchendo_tabela,
+    texto_contagem,
+)
 from src.apresentacao.telas.ordem_servico_dialog import OrdemServicoDialog
 from src.apresentacao.tema import ERRO, SUCESSO
 from src.controle.ordem_servico_controller import (
@@ -62,6 +70,8 @@ class OrdensServicoView(QWidget):
         super().__init__(parent)
         self.setObjectName("pagina")
         self._controller = controller or OrdemServicoController()
+        self._pagina = 1  # paginação: 50 por vez
+        self._ultima_pagina = None
         self._dtos: List[OrdemServicoDTO] = []
         self._timer_busca = QTimer(self, singleShot=True, interval=250)
         self._timer_feedback = QTimer(self, singleShot=True, interval=5000)
@@ -132,10 +142,12 @@ class OrdensServicoView(QWidget):
         self._lbl_total.setObjectName("rodape")
         self._lbl_feedback = QLabel()
         self._lbl_feedback.setObjectName("feedbackOk")
+        self._paginacao = BarraPaginacao()
         rodape = QHBoxLayout()
         rodape.addWidget(self._lbl_total)
         rodape.addSpacing(16)
         rodape.addWidget(self._lbl_feedback, stretch=1)
+        rodape.addWidget(self._paginacao)
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(32, 28, 32, 24)
@@ -154,8 +166,10 @@ class OrdensServicoView(QWidget):
         self._tabela.itemSelectionChanged.connect(self._atualizar_botoes)
         self._tabela.itemDoubleClicked.connect(lambda _i: self._abrir())
         self._busca.textChanged.connect(lambda _t: self._timer_busca.start())
-        self._timer_busca.timeout.connect(self.recarregar)
-        self._filtro.currentIndexChanged.connect(lambda _i: self.recarregar())
+        # busca ou filtro novo sempre volta para a página 1
+        self._timer_busca.timeout.connect(lambda: self.recarregar(pagina=1))
+        self._filtro.currentIndexChanged.connect(lambda _i: self.recarregar(pagina=1))
+        self._paginacao.pagina_pedida.connect(lambda p: self.recarregar(pagina=p))
         self._timer_feedback.timeout.connect(lambda: self._lbl_feedback.setText(""))
 
     # ------------------------------------------------------------------
@@ -163,13 +177,20 @@ class OrdensServicoView(QWidget):
         super().showEvent(evento)
         self.recarregar()
 
-    def recarregar(self, selecionar: Optional[int] = None) -> None:
+    def recarregar(self, selecionar: Optional[int] = None, pagina: Optional[int] = None) -> None:
+        if pagina is not None:
+            self._pagina = pagina
         try:
-            self._dtos = self._controller.listar(self._busca.text(), self._filtro.currentData())
+            self._ultima_pagina = self._controller.listar_pagina(
+                self._busca.text(), self._filtro.currentData(), self._pagina
+            )
         except Exception as erro:  # noqa: BLE001
             erro_inesperado(self, erro, "Não foi possível carregar as ordens de serviço.")
             return
-        self._preencher(selecionar)
+        self._pagina = self._ultima_pagina.pagina
+        self._dtos = list(self._ultima_pagina.itens)
+        with preenchendo_tabela(self._tabela):  # evita o travamento quadrático ao recarregar
+            self._preencher(selecionar)
 
     def _preencher(self, selecionar: Optional[int]) -> None:
         self._tabela.blockSignals(True)
@@ -207,10 +228,12 @@ class OrdensServicoView(QWidget):
         tem = bool(self._dtos)
         self._tabela.setVisible(tem)
         self._lbl_vazio.setVisible(not tem)
-        soma = sum((o.valor_total for o in self._dtos), Decimal("0"))
-        n = len(self._dtos)
-        texto = "1 ordem de serviço" if n == 1 else f"{n} ordens de serviço"
-        self._lbl_total.setText(f"{texto}  •  total listado: {formatar_moeda(soma)}" if n else texto)
+        pag = self._ultima_pagina
+        texto = texto_contagem(pag, "ordem de serviço", "ordens de serviço")
+        # valor somado no banco sobre TODAS as OS do filtro, não só as 50 da página
+        soma = pag.resumo.get("valor_total", Decimal("0"))
+        self._lbl_total.setText(f"{texto}  •  total listado: {formatar_moeda(soma)}" if pag.total else texto)
+        self._paginacao.atualizar(pag)
 
     def _selecionada(self) -> Optional[OrdemServicoDTO]:
         linha = self._tabela.currentRow()
@@ -241,7 +264,7 @@ class OrdensServicoView(QWidget):
             self._filtro.setCurrentIndex(0)
             self._busca.blockSignals(False)
             self._filtro.blockSignals(False)
-            self.recarregar(d.resultado.id_ordem_servico)
+            self.recarregar(d.resultado.id_ordem_servico, pagina=1)  # OS nova é a primeira da lista
             self._mostrar_feedback(f"OS #{d.resultado.id_ordem_servico} criada.")
 
     def _abrir(self) -> None:

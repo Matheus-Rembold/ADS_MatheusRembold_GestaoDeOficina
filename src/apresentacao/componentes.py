@@ -8,10 +8,20 @@ tradução instalada).
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from decimal import Decimal
-from typing import Optional
+from typing import Iterator, Optional
 
-from PyQt6.QtWidgets import QMessageBox, QWidget
+from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QWidget,
+)
 
 log = logging.getLogger(__name__)
 
@@ -101,3 +111,88 @@ def converter_valor(texto: str) -> Optional[Decimal]:
     if "," in t:  # formato brasileiro: ponto separa milhar, vírgula separa centavos
         t = t.replace(".", "").replace(",", ".")
     return Decimal(t)
+
+
+# ----------------------------------------------------------------------
+# Tabelas e paginação (09/11/2026)
+# ----------------------------------------------------------------------
+@contextmanager
+def preenchendo_tabela(tabela: QTableWidget) -> Iterator[None]:
+    """
+    Use em volta de QUALQUER preenchimento de tabela:
+
+        with preenchendo_tabela(self._tabela):
+            ... setRowCount / setItem ...
+
+    Por quê: coluna em ResizeToContents faz o Qt recalcular a largura a cada
+    setItem, relendo a coluna inteira. Com a tabela já na tela isso tem custo
+    quadrático (medido: 1.035 OS levavam 203 s na segunda entrada na tela).
+    Aqui o ajuste fica desligado durante o preenchimento e é feito UMA vez no
+    fim (as mesmas 1.035 linhas: cerca de 100 ms).
+    """
+    cabecalho = tabela.horizontalHeader()
+    modos = [cabecalho.sectionResizeMode(i) for i in range(cabecalho.count())]
+    automatico = QHeaderView.ResizeMode.ResizeToContents
+    tabela.setUpdatesEnabled(False)
+    for i, modo in enumerate(modos):
+        if modo == automatico:
+            cabecalho.setSectionResizeMode(i, QHeaderView.ResizeMode.Interactive)
+    try:
+        yield
+    finally:
+        for i, modo in enumerate(modos):
+            if modo == automatico:
+                cabecalho.setSectionResizeMode(i, automatico)
+        tabela.setUpdatesEnabled(True)
+
+
+def _milhar(numero: int) -> str:
+    return f"{numero:,}".replace(",", ".")
+
+
+def texto_contagem(pagina, singular: str, plural: str) -> str:
+    """'55 clientes' quando cabe numa página; 'Mostrando 51–100 de 1.035 clientes' quando não."""
+    if pagina.total == 1:
+        return f"1 {singular}"
+    if pagina.total_paginas == 1:
+        return f"{_milhar(pagina.total)} {plural}"
+    return f"Mostrando {_milhar(pagina.primeiro)}–{_milhar(pagina.ultimo)} de {_milhar(pagina.total)} {plural}"
+
+
+class BarraPaginacao(QWidget):
+    """
+    ‹ Anterior   Página 2 de 21   Próxima ›
+
+    Fica escondida quando tudo cabe numa página (Nielsen: estética e design
+    minimalista, sem controle que não serve para nada). Os botões se
+    desabilitam na primeira/última página (prevenção de erros) e o texto
+    "Página X de Y" mostra onde o usuário está (visibilidade do estado).
+    Emite `pagina_pedida(numero)`; quem busca os dados é a tela.
+    """
+
+    pagina_pedida = pyqtSignal(int)
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self._pagina = 1
+        self._anterior = QPushButton("‹ Anterior")
+        self._proxima = QPushButton("Próxima ›")
+        self._rotulo = QLabel()
+        self._rotulo.setObjectName("rodape")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+        layout.addWidget(self._anterior)
+        layout.addWidget(self._rotulo)
+        layout.addWidget(self._proxima)
+        self._anterior.clicked.connect(lambda: self.pagina_pedida.emit(self._pagina - 1))
+        self._proxima.clicked.connect(lambda: self.pagina_pedida.emit(self._pagina + 1))
+        self.hide()
+
+    def atualizar(self, pagina) -> None:
+        """Recebe a Pagina devolvida pelo controller."""
+        self._pagina = pagina.pagina
+        self._rotulo.setText(f"Página {pagina.pagina} de {pagina.total_paginas}")
+        self._anterior.setEnabled(pagina.tem_anterior)
+        self._proxima.setEnabled(pagina.tem_proxima)
+        self.setVisible(pagina.total_paginas > 1)

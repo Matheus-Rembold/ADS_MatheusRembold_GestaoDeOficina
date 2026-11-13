@@ -1,3 +1,8 @@
+-- Camaro: schema + dados iniciais. Instalação NOVA: rode este arquivo inteiro
+-- num banco vazio. O SET abaixo garante os acentos certos em qualquer cliente
+-- (o psql do Windows, sem ele, grava "Óleo" corrompido).
+SET client_encoding = 'UTF8';
+
 
 -- ------------------------------------------------------------
 -- 1. CLIENTE

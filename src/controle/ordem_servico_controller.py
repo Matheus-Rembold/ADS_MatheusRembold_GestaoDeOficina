@@ -19,6 +19,8 @@ from src.persistencia.repositories.ordem_servico_repository import OrdemServicoR
 from src.servico.ordem_servico_service import ItemOS, OrdemServicoService
 from src.servico.cliente_service import ClienteService
 
+from src.servico.paginacao import POR_PAGINA, Pagina  # noqa: F401 (reexportado para a tela)
+
 # Reexportadas de propósito: a tela importa tudo DAQUI.
 from src.servico.excecoes import (  # noqa: F401
     ErroDeNegocio,
@@ -179,6 +181,14 @@ class OrdemServicoController:
                 OrdemServicoDTO.de_modelo(o)
                 for o in OrdemServicoService(session).listar(termo, status)
             ]
+
+    def listar_pagina(
+        self, termo: str = "", status: Optional[StatusOrdemServico] = None, pagina: int = 1
+    ) -> Pagina:
+        """Uma página (50) de OS como DTOs; resumo["valor_total"] soma TODAS as OS do filtro."""
+        with self._session_factory() as session:
+            resultado = OrdemServicoService(session).listar_pagina(termo, status, pagina)
+            return resultado.com_itens(OrdemServicoDTO.de_modelo(o) for o in resultado.itens)
 
     def listar_por_veiculo(self, id_veiculo: int) -> List[OrdemServicoDTO]:
         with self._session_factory() as session:

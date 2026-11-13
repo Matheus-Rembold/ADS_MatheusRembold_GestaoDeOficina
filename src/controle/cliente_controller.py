@@ -19,6 +19,8 @@ from src.persistencia.models import Cliente
 from src.servico.cliente_service import ClienteService
 from src.servico.validadores import somente_digitos
 
+from src.servico.paginacao import POR_PAGINA, Pagina  # noqa: F401 (reexportado para a tela)
+
 # Reexportadas de propósito: a tela importa as exceções DAQUI, sem precisar
 # conhecer a camada de serviço (regra de dependência do README).
 from src.servico.excecoes import (  # noqa: F401
@@ -72,6 +74,12 @@ class ClienteController:
             else:
                 clientes = servico.buscar_por_nome(termo)
             return [ClienteDTO.de_modelo(c) for c in clientes]
+
+    def listar_pagina(self, termo: str = "", pagina: int = 1) -> Pagina:
+        """Uma página (50) de clientes como DTOs; mesma busca do listar()."""
+        with self._session_factory() as session:
+            resultado = ClienteService(session).listar_pagina(termo, pagina)
+            return resultado.com_itens(ClienteDTO.de_modelo(c) for c in resultado.itens)
 
     def obter(self, id_cliente: int) -> ClienteDTO:
         """Leitura fresca de um cliente (levanta RegistroNaoEncontradoError se sumiu)."""

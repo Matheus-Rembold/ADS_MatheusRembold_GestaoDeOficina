@@ -51,6 +51,7 @@ from src.apresentacao.componentes import (
     erro_inesperado,
     formatar_moeda,
     formatar_moeda_com_sinal,
+    preenchendo_tabela,
 )
 from src.apresentacao.graficos_relatorio import grafico_financeiro, grafico_servicos
 from src.apresentacao.relatorio_pdf import salvar_pdf
@@ -389,6 +390,11 @@ class RelatoriosView(QWidget):
 
     @staticmethod
     def _encher(tabela: QTableWidget, linhas, negrito_ultima: bool = False) -> None:
+        with preenchendo_tabela(tabela):
+            RelatoriosView._encher_linhas(tabela, linhas, negrito_ultima)
+
+    @staticmethod
+    def _encher_linhas(tabela: QTableWidget, linhas, negrito_ultima: bool = False) -> None:
         tabela.setRowCount(len(linhas))
         for i, linha in enumerate(linhas):
             for j, valor in enumerate(linha):

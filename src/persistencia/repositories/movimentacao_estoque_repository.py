@@ -12,10 +12,11 @@ from __future__ import annotations
 from datetime import date
 from typing import List, Optional
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.persistencia.models import MovimentacaoEstoque, Produto, TipoMovimentacao
+from src.persistencia.repositories import paginacao
 
 
 class MovimentacaoEstoqueRepository:
@@ -80,11 +81,45 @@ class MovimentacaoEstoqueRepository:
         Consulta com filtros opcionais, da mais recente para a mais antiga.
         O produto vem junto (joinedload) para evitar o problema N+1.
         """
-        stmt = (
-            select(MovimentacaoEstoque)
-            .join(MovimentacaoEstoque.produto)
-            .options(joinedload(MovimentacaoEstoque.produto))
+        stmt = self._consulta(termo, tipo, data_inicio, data_fim).options(
+            joinedload(MovimentacaoEstoque.produto)
         )
+        stmt = stmt.order_by(*self._ORDEM)
+        return list(self._session.scalars(stmt).all())
+
+    # --- paginação (09/11/2026) ---
+    _ORDEM = (
+        MovimentacaoEstoque.data_movimentacao.desc(),
+        MovimentacaoEstoque.id_movimentacao_estoque.desc(),
+    )
+
+    def contar(self, termo="", tipo=None, data_inicio=None, data_fim=None) -> int:
+        return paginacao.contar(self._session, self._consulta(termo, tipo, data_inicio, data_fim))
+
+    def listar_pagina(self, termo, tipo, data_inicio, data_fim, limite: int, deslocamento: int):
+        return paginacao.buscar_pagina(
+            self._session, self._consulta(termo, tipo, data_inicio, data_fim),
+            ordem=self._ORDEM, opcoes=(joinedload(MovimentacaoEstoque.produto),),
+            limite=limite, deslocamento=deslocamento,
+        )
+
+    def somar_valores(self, termo="", tipo=None, data_inicio=None, data_fim=None) -> dict:
+        """Soma do valor por tipo, sobre TODAS as movimentações do filtro (para o rodapé)."""
+        stmt = (
+            self._consulta(termo, tipo, data_inicio, data_fim)
+            .with_only_columns(MovimentacaoEstoque.tipo, func.coalesce(func.sum(MovimentacaoEstoque.valor), 0))
+            .group_by(MovimentacaoEstoque.tipo)
+        )
+        return {TipoMovimentacao(t): v for t, v in self._session.execute(stmt).all()}
+
+    @staticmethod
+    def _consulta(
+        termo: str = "",
+        tipo: Optional[TipoMovimentacao] = None,
+        data_inicio: Optional[date] = None,
+        data_fim: Optional[date] = None,
+    ):
+        stmt = select(MovimentacaoEstoque).join(MovimentacaoEstoque.produto)
         if termo:
             stmt = stmt.where(
                 or_(
@@ -99,8 +134,4 @@ class MovimentacaoEstoqueRepository:
             stmt = stmt.where(MovimentacaoEstoque.data_movimentacao >= data_inicio)
         if data_fim is not None:
             stmt = stmt.where(MovimentacaoEstoque.data_movimentacao <= data_fim)
-        stmt = stmt.order_by(
-            MovimentacaoEstoque.data_movimentacao.desc(),
-            MovimentacaoEstoque.id_movimentacao_estoque.desc(),
-        )
-        return list(self._session.scalars(stmt).all())
+        return stmt

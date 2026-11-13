@@ -45,7 +45,32 @@ cp .env.example .env         # Linux/Mac
 
 # 4. Executar a aplicação
 python -m src.main
+
+# Autodiagnóstico (banco, telas, gráficos e PDF), sem abrir janela
+python -m src.main --verificar
 ```
+
+O `.env` é lido da raiz do projeto. Para ver todo o SQL no console, use `DB_ECHO=true` no `.env`.
+Erros ficam registrados em `%LOCALAPPDATA%\Camaro\camaro.log`.
+
+## Gerar o executável (Windows)
+
+```bash
+pyinstaller camaro.spec --noconfirm --clean
+```
+
+O resultado é a pasta `dist\Camaro\` (cerca de 82 MB), com o `Camaro.exe` e a pasta `_internal`.
+Para instalar em outro computador:
+
+1. Instale o PostgreSQL e crie o banco com o `BancoDeDadods.sql` (instalação nova).
+2. Copie a pasta `dist\Camaro\` inteira.
+3. Ao lado do `Camaro.exe`, crie o `.env` a partir de `_internal\.env.example` com os dados do PostgreSQL.
+4. Rode `Camaro.exe --verificar` e confira o resultado no log (`%LOCALAPPDATA%\Camaro\camaro.log`).
+   O código de saída é 0 quando está tudo certo.
+5. Abra o `Camaro.exe`.
+
+A receita do build está comentada em `camaro.spec`: modo pasta (onedir), sem console, sem o `.env`
+dentro do pacote e sem as DLLs que o sistema não usa.
 
 ## Cronograma (seção 3.1 do DVP)
 

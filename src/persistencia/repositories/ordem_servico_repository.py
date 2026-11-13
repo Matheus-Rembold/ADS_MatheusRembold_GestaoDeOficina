@@ -19,6 +19,7 @@ from src.persistencia.models import (
     StatusOrdemServico,
     Veiculo,
 )
+from src.persistencia.repositories import paginacao
 
 
 class OrdemServicoRepository:
@@ -59,14 +60,46 @@ class OrdemServicoRepository:
             stmt = stmt.with_for_update(of=OrdemServico).execution_options(populate_existing=True)
         return self._session.scalars(stmt).unique().first()
 
+    _ORDEM = (OrdemServico.criado_em.desc(), OrdemServico.id_ordem_servico.desc())
+    # joinedload nos "para um" e selectinload nas peças: evita N+1 (também na página)
+    _OPCOES = (
+        joinedload(OrdemServico.cliente),
+        joinedload(OrdemServico.veiculo),
+        selectinload(OrdemServico.os_produtos).joinedload(OsProduto.produto),
+    )
+
     def listar(
         self, termo: str = "", status: Optional[StatusOrdemServico] = None
     ) -> List[OrdemServico]:
-        stmt = (
-            self._base()
-            .join(OrdemServico.cliente)
-            .join(OrdemServico.veiculo)
+        stmt = self._consulta(termo, status).options(*self._OPCOES).order_by(*self._ORDEM)
+        return list(self._session.scalars(stmt).unique().all())
+
+    # --- paginação (09/11/2026) ---
+    def contar(self, termo: str = "", status: Optional[StatusOrdemServico] = None) -> int:
+        return paginacao.contar(self._session, self._consulta(termo, status))
+
+    def listar_pagina(self, termo, status, limite: int, deslocamento: int) -> List[OrdemServico]:
+        return paginacao.buscar_pagina(
+            self._session, self._consulta(termo, status), ordem=self._ORDEM, opcoes=self._OPCOES,
+            limite=limite, deslocamento=deslocamento,
         )
+
+    def somar_total(self, termo: str = "", status: Optional[StatusOrdemServico] = None):
+        """Valor total (peças + mão de obra) de TODAS as OS do filtro, calculado no banco."""
+        ids = self._consulta(termo, status).with_only_columns(OrdemServico.id_ordem_servico).subquery()
+        mao = self._session.scalar(
+            select(func.coalesce(func.sum(OrdemServico.valor_mao_de_obra), 0))
+            .where(OrdemServico.id_ordem_servico.in_(select(ids.c.id_ordem_servico)))
+        )
+        pecas = self._session.scalar(
+            select(func.coalesce(func.sum(OsProduto.quantidade_utilizada * OsProduto.preco_unitario), 0))
+            .where(OsProduto.id_ordem_servico.in_(select(ids.c.id_ordem_servico)))
+        )
+        return mao + pecas
+
+    @staticmethod
+    def _consulta(termo: str = "", status: Optional[StatusOrdemServico] = None):
+        stmt = select(OrdemServico).join(OrdemServico.cliente).join(OrdemServico.veiculo)
         if termo:
             like = [
                 Cliente.nome.icontains(termo, autoescape=True),
@@ -80,8 +113,7 @@ class OrdemServicoRepository:
             stmt = stmt.where(or_(*like))
         if status is not None:
             stmt = stmt.where(OrdemServico.status == status)
-        stmt = stmt.order_by(OrdemServico.criado_em.desc(), OrdemServico.id_ordem_servico.desc())
-        return list(self._session.scalars(stmt).unique().all())
+        return stmt
 
     def listar_por_veiculo(self, id_veiculo: int) -> List[OrdemServico]:
         stmt = (
