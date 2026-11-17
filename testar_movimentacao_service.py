@@ -22,6 +22,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 
 from src.config.database import SessionLocal, engine, get_session
 from src.controle.movimentacao_estoque_controller import MovimentacaoEstoqueController
+from src.controle.sessao import sessao
 from src.persistencia.models import MovimentacaoEstoque, Produto, TipoMovimentacao
 from src.servico.excecoes import (
     OperacaoNaoPermitidaError,
@@ -85,6 +86,7 @@ def limpar() -> None:
 
 
 def main() -> None:
+    sessao.entrar_sistema()  # RF10: os controllers exigem uma sessão (aqui, a interna de testes)
     limpar()  # começo limpo, mesmo se uma rodada anterior falhou
     with get_session() as s0:
         # Total ANTES do teste: o banco pode ter movimento real ou dados de exemplo.

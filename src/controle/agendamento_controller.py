@@ -14,6 +14,8 @@ from typing import Callable, Dict, List, Optional, Union
 from sqlalchemy.orm import Session
 
 from src.config.database import SessionLocal
+from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
+from src.servico.permissoes import Permissao
 from src.controle.ordem_servico_controller import (  # noqa: F401  (reexportados para a tela)
     ClienteOpcaoDTO,
     OrdemServicoController,
@@ -92,6 +94,7 @@ class HoraDoDiaDTO:
     agendamentos: tuple
 
 
+@protegido(Permissao.AGENDAMENTOS)
 class AgendamentoController:
     def __init__(self, session_factory: Callable[[], Session] = SessionLocal) -> None:
         self._session_factory = session_factory

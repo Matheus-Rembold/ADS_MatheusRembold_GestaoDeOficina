@@ -14,6 +14,7 @@ Table cliente {
   contato varchar(20) [not null, note: 'pode se repetir']
   endereco varchar(255)
   criado_em timestamp [not null, default: `now()`]
+  aceita_mensagens boolean [not null, default: true, note: 'RF07/LGPD: pode recusar mensagens']
 }
 
 Table veiculo {
@@ -104,8 +105,32 @@ Table movimentacao_estoque {
 
 Table notificacao {
   id_notificacao serial [pk]
-  id_ordem_servico int [not null, unique, ref: - ordem_servico.id_ordem_servico]
+  id_ordem_servico int [unique, ref: - ordem_servico.id_ordem_servico, note: 'pós-venda']
   status_envio varchar(20) [not null, default: 'pendente', note: 'pendente | enviado | cancelado']
   data_envio_prevista date
   data_envio_real timestamp
+  tipo varchar(25) [not null, default: 'pos_venda', note: 'pos_venda | lembrete_agendamento']
+  id_agendamento int [unique, ref: - agendamento.id_agendamento, note: 'lembrete; ON DELETE CASCADE']
+  mensagem text [note: 'texto exato enviado']
+  motivo_cancelamento varchar(150)
+  criado_em timestamp [not null, default: `now()`]
+  Note: 'ck_notificacao_alvo: pós-venda aponta só para a OS; lembrete só para o agendamento'
+
+  indexes {
+    (status_envio, data_envio_prevista) [name: 'idx_notificacao_previsao']
+  }
+}
+
+Table usuario {
+  id_usuario serial [pk]
+  nome varchar(100) [not null]
+  login varchar(30) [not null, note: 'minúsculas; único sem diferenciar maiúsculas (uq_usuario_login)']
+  senha_hash varchar(60) [not null, note: 'hash bcrypt (custo 12, sal embutido); a senha nunca é guardada']
+  perfil varchar(20) [not null, note: 'dono | mecanico']
+  ativo boolean [not null, default: true]
+  tentativas_falhas int [not null, default: 0, note: '5 falhas seguidas bloqueiam']
+  bloqueado_ate timestamp [note: 'bloqueio de 5 minutos']
+  ultimo_login_em timestamp
+  criado_em timestamp [not null, default: `now()`]
+  Note: 'RF10: tabela independente (sem chave estrangeira para as outras)'
 }

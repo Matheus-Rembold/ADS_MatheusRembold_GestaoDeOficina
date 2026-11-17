@@ -25,6 +25,7 @@ a = Analysis(
     hiddenimports=[
         "sqlalchemy.dialects.postgresql.psycopg2",
         "PyQt6.QtCharts",
+        "PyQt6.QtSvg",  # ícones da barra lateral (SVG embutido em icones.py)
     ],
     excludes=[
         # bibliotecas que o Camaro não usa: o pacote fica menor

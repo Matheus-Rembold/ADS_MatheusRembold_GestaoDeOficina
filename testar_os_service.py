@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 
 from src.config.database import SessionLocal, engine, get_session
 from src.persistencia.models import (
+    Notificacao,
     Cliente, MovimentacaoEstoque, NotaFiscal, OrdemServico, OsProduto, Produto,
     StatusOrdemServico, TipoMovimentacao, Veiculo,
 )
@@ -69,6 +70,7 @@ def limpar() -> None:
         nfs = list(s.scalars(select(OrdemServico.id_nota_fiscal).where(
             OrdemServico.id_ordem_servico.in_(ids_os), OrdemServico.id_nota_fiscal.is_not(None)))) if ids_os else []
         if ids_os:
+            s.execute(delete(Notificacao).where(Notificacao.id_ordem_servico.in_(ids_os)))  # RF07
             s.execute(delete(OsProduto).where(OsProduto.id_ordem_servico.in_(ids_os)))
             s.execute(delete(OrdemServico).where(OrdemServico.id_ordem_servico.in_(ids_os)))
         if nfs:
@@ -309,7 +311,7 @@ def main() -> None:
             ID2 = os2.id_ordem_servico
             verificar("criada em andamento e baixou o estoque (C: 3 -> 1)", os2.status is S.ANDAMENTO and saldo(session, PC) == 1)
 
-            print("\n--- Pronto trava a OS; entregue é o fim ---")
+            print("\n--- Serviço realizado (pronto) trava a OS; entregue é o fim ---")
             os2 = servico.alterar_status(ID2, S.PRONTO)
             esperar_erro("editar OS pronta", OperacaoNaoPermitidaError,
                          lambda: servico.atualizar(ID2, C2, V2, 1000, "x", "Elétrica", 0, [ItemOS(PC, 1, 1)]))
@@ -355,6 +357,34 @@ def main() -> None:
             verificar("busca com % e _ é literal (não curinga)", servico.listar("%") == [] and servico.listar("_") == [])
             verificar("histórico por veículo (mais recente primeiro)", [o.id_ordem_servico for o in servico.listar_por_veiculo(V1)] == [ID3, ID1])
             verificar("tipos de serviço sugeridos incluem o do teste", TIPO in servico.listar_tipos_servico())
+
+            print("\n--- Cartões da tela: OS em andamento, prontas e aguardando pagamento ---")
+            def painel():
+                return {r.status: (r.quantidade, r.valor) for r in servico.painel_situacao()}
+            antes = painel()
+            verificar("painel traz as 3 situações, nesta ordem",
+                      [r.status for r in servico.painel_situacao()] == [S.ANDAMENTO, S.PRONTO, S.AGUARDANDO_PAGAMENTO])
+            osp = servico.cadastrar(C2, V2, 3000, "Painel", TIPO, Decimal("150.00"), status=S.ANDAMENTO)
+            ID_P = osp.id_ordem_servico
+
+            def mudou(status, qtd, valor):
+                agora = painel()
+                return all(
+                    agora[s] == ((antes[s][0] + qtd, antes[s][1] + valor) if s is status else antes[s])
+                    for s in antes
+                )
+            verificar("nova OS em andamento: +1 e +R$ 150,00 só no cartão 'em andamento'",
+                      mudou(S.ANDAMENTO, 1, Decimal("150.00")))
+            servico.alterar_status(ID_P, S.PRONTO)
+            verificar("serviço realizado: sai de 'em andamento' e entra em 'serviço realizado'", mudou(S.PRONTO, 1, Decimal("150.00")))
+            servico.alterar_status(ID_P, S.AGUARDANDO_PAGAMENTO)
+            verificar("aguardando pagamento: valor entra no 'a receber'",
+                      mudou(S.AGUARDANDO_PAGAMENTO, 1, Decimal("150.00")))
+            servico.alterar_status(ID_P, S.ENTREGUE)
+            verificar("entregue: sai dos cartões (volta ao que era antes)", painel() == antes)
+            p = servico.listar_pagina("", S.AGUARDANDO_PAGAMENTO)
+            verificar("cartão bate com a lista filtrada (quantidade e valor)",
+                      painel()[S.AGUARDANDO_PAGAMENTO] == (p.total, p.resumo["valor_total"]))
 
             print("\n--- Última linha de defesa: CHECK/UNIQUE do banco ---")
             def bd(sql: str, **p):

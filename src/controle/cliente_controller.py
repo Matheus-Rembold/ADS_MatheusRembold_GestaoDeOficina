@@ -15,9 +15,17 @@ from typing import Callable, List, Optional
 from sqlalchemy.orm import Session
 
 from src.config.database import SessionLocal
+from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
+from src.servico.permissoes import Permissao
 from src.persistencia.models import Cliente
 from src.servico.cliente_service import ClienteService
 from src.servico.validadores import somente_digitos
+from src.integracao.whatsapp import normalizar_celular
+
+
+def celular_valido(contato: Optional[str]) -> bool:
+    """RF07: o contato serve para o WhatsApp? (reexportado para a prévia na tela)"""
+    return normalizar_celular(contato) is not None
 
 from src.servico.paginacao import POR_PAGINA, Pagina  # noqa: F401 (reexportado para a tela)
 
@@ -43,6 +51,11 @@ class ClienteDTO:
     idade: Optional[int]
     endereco: Optional[str]
     qtd_veiculos: int
+    aceita_mensagens: bool = True  # RF07 (LGPD)
+
+    @property
+    def celular_valido(self) -> bool:
+        return celular_valido(self.contato)
 
     @staticmethod
     def de_modelo(cliente: Cliente) -> "ClienteDTO":
@@ -54,9 +67,11 @@ class ClienteDTO:
             idade=cliente.idade,
             endereco=cliente.endereco,
             qtd_veiculos=len(cliente.veiculos),
+            aceita_mensagens=cliente.aceita_mensagens,
         )
 
 
+@protegido(Permissao.CLIENTES)
 class ClienteController:
     def __init__(self, session_factory: Callable[[], Session] = SessionLocal) -> None:
         self._session_factory = session_factory
@@ -93,9 +108,12 @@ class ClienteController:
         contato: str,
         idade: Optional[int] = None,
         endereco: Optional[str] = None,
+        aceita_mensagens: bool = True,
     ) -> ClienteDTO:
         with self._session_factory() as session:
-            cliente = ClienteService(session).cadastrar(nome, cpf, contato, idade, endereco)
+            cliente = ClienteService(session).cadastrar(
+                nome, cpf, contato, idade, endereco, aceita_mensagens
+            )
             return ClienteDTO.de_modelo(cliente)
 
     def atualizar(
@@ -106,10 +124,11 @@ class ClienteController:
         contato: str,
         idade: Optional[int] = None,
         endereco: Optional[str] = None,
+        aceita_mensagens: bool = True,
     ) -> ClienteDTO:
         with self._session_factory() as session:
             cliente = ClienteService(session).atualizar(
-                id_cliente, nome, cpf, contato, idade, endereco
+                id_cliente, nome, cpf, contato, idade, endereco, aceita_mensagens
             )
             return ClienteDTO.de_modelo(cliente)
 

@@ -45,6 +45,7 @@ from src.apresentacao.componentes import (
 )
 from src.apresentacao.telas.produto_dialog import ProdutoDialog
 from src.apresentacao.tema import ERRO
+from src.controle.sessao import Permissao, sessao
 from src.controle.produto_controller import (
     ErroDeNegocio,
     OperacaoNaoPermitidaError,
@@ -72,7 +73,21 @@ class ProdutosView(QWidget):
 
         self._montar_interface()
         self._conectar_sinais()
+        self._aplicar_perfil()
         self._atualizar_botoes()
+
+    def _aplicar_perfil(self) -> None:
+        """
+        RF10: o mecânico só CONSULTA produtos (sem cadastrar, editar ou excluir)
+        e não vê custo nem margem. Os botões e colunas somem da tela; mesmo que
+        alguém chamasse a operação, o controller recusaria (segunda camada).
+        """
+        self._pode_gerenciar = sessao.pode(Permissao.PRODUTOS_GERENCIAR)
+        for botao in (self._btn_novo, self._btn_editar, self._btn_excluir):
+            botao.setVisible(self._pode_gerenciar)
+        ver_custos = sessao.pode(Permissao.VER_CUSTOS)
+        self._tabela.setColumnHidden(COL_VALOR, not ver_custos)
+        self._tabela.setColumnHidden(COL_MARGEM, not ver_custos)
 
     # ------------------------------------------------------------------
     # Montagem
@@ -170,7 +185,7 @@ class ProdutosView(QWidget):
         self._paginacao.pagina_pedida.connect(lambda p: self.recarregar(pagina=p))
         self._timer_feedback.timeout.connect(lambda: self._lbl_feedback.setText(""))
         self._tabela.itemSelectionChanged.connect(self._atualizar_botoes)
-        self._tabela.itemDoubleClicked.connect(lambda _item: self._editar())
+        self._tabela.itemDoubleClicked.connect(lambda _item: self._pode_gerenciar and self._editar())
 
     # ------------------------------------------------------------------
     # Dados

@@ -13,9 +13,13 @@ O que é criado (tudo MARCADO, para nunca se misturar com dado real):
 - 24 meses de compras (reposição pelo consumo), doações, vendas por fora,
   devoluções ressarcidas e ajustes de inventário;
 - cerca de 1.100 OS em todas as situações: entregues, aguardando pagamento,
-  orçamentos não aprovados e, nos últimos dias, em andamento e prontas;
+  orçamentos não aprovados e, nos últimos dias, em andamento e com serviço realizado;
 - agendamentos: passados (concluídos e ligados à OS, ou cancelados) e nas
-  próximas 2 semanas, incluindo um horário LOTADO (limite de 2 simultâneos).
+  próximas 2 semanas, incluindo um horário LOTADO (limite de 2 simultâneos);
+- notificações do WhatsApp (RF07): pós-venda das OS entregues (as antigas já
+  enviadas ou canceladas, as recentes pendentes, algumas atrasadas) e
+  lembretes dos agendamentos; 3 clientes que NÃO aceitam mensagens e 2 com
+  telefone fixo (o envio fica bloqueado, com o motivo na tela).
 
 Clientes, veículos, compras, OS e agendamentos futuros passam pelos PRÓPRIOS
 SERVIÇOS do sistema: CPF, placa, estoque, custo, preço de venda e limite da
@@ -34,10 +38,15 @@ from sqlalchemy import delete, func, select, update
 
 from src.config.database import DB_NAME, engine, get_session
 from src.persistencia.models import (
+    Notificacao, StatusEnvio, TipoNotificacao,
     Agendamento, Cliente, MovimentacaoEstoque, OrdemServico, OsProduto, Produto,
     StatusAgendamento, StatusOrdemServico, TipoMovimentacao, Veiculo,
 )
 from src.servico.agendamento_service import AgendamentoService
+from src.integracao.whatsapp import normalizar_celular
+from src.servico.notificacao_service import (
+    DIAS_POS_VENDA, MOTIVO_AGENDAMENTO_CANCELADO, MOTIVO_SEM_ACEITE, NotificacaoService, mensagem_lembrete,
+)
 from src.servico.cliente_service import ClienteService
 from src.servico.excecoes import ErroDeNegocio
 from src.servico.movimentacao_estoque_service import MovimentacaoEstoqueService
@@ -83,6 +92,8 @@ PRODUTOS = [
     ("Abraçadeira de escapamento", "Escapamento", "12.00", 4, 4),
 ]
 PECA_DOADA = ("Palheta do limpador", "Acessórios")  # entra só por doação: sem custo registrado
+NAO_ACEITAM = {5, 17, 33}   # RF07: clientes que recusaram mensagens (LGPD)
+TELEFONE_FIXO = {8, 29}     # RF07: contato fixo, sem WhatsApp (envio bloqueado na tela)
 ACABAM_BAIXOS = {"Pastilha de freio traseira", "Lâmpada H4"}  # sem reposição no último mês
 MANUAIS = {  # preço de venda definido à mão: fator sobre o custo da 1ª compra
     "Bateria 60Ah": D("1.45"),            # margem maior que a padrão
@@ -139,6 +150,59 @@ def dia_util(rnd, inicio: date, fim: date) -> date:
     return inicio
 
 
+def ajustar_notificacoes(s, rnd, datas_os, ags_passados, hoje: date) -> dict:
+    """
+    RF07. O sistema criou a pós-venda de cada OS entregue com a data de "agora";
+    aqui ela passa a contar da entrega de verdade (entrega + 7 dias). As antigas
+    ficam como já enviadas (com o texto) ou canceladas; as dos últimos 3 dias
+    ficam pendentes (algumas atrasadas). Agendamentos passados ganham o
+    lembrete da véspera: enviado (ou cancelado, se o cliente desmarcou).
+    """
+    ns = NotificacaoService(s)
+    contagem = {"enviadas": 0, "canceladas": 0, "pendentes": 0}
+
+    def marcar_enviada(n: Notificacao, quando: datetime, texto: str) -> None:
+        n.status_envio, n.data_envio_real, n.mensagem = StatusEnvio.ENVIADO, quando, texto
+
+    entregues = {i: e for i, (_c, e) in datas_os.items() if e}
+    for n in s.scalars(select(Notificacao).where(Notificacao.id_ordem_servico.in_(list(entregues)))):
+        n.data_envio_prevista = entregues[n.id_ordem_servico].date() + timedelta(days=DIAS_POS_VENDA)
+        n.criado_em = entregues[n.id_ordem_servico]
+        if n.status_envio is StatusEnvio.CANCELADO:  # cliente não aceita mensagens
+            contagem["canceladas"] += 1
+        elif n.data_envio_prevista < hoje - timedelta(days=3):
+            if rnd.random() < 0.9:
+                quando = datetime.combine(n.data_envio_prevista + timedelta(days=rnd.choice([0, 0, 0, 1])),
+                                          datetime.min.time()) + timedelta(hours=rnd.randint(8, 17),
+                                                                           minutes=rnd.randint(0, 59))
+                marcar_enviada(n, quando, ns.mensagem_padrao(n))
+                contagem["enviadas"] += 1
+            else:
+                n.status_envio = StatusEnvio.CANCELADO
+                n.motivo_cancelamento = rnd.choice(["Cliente já voltou à oficina", "Veículo vendido pelo cliente"])
+                contagem["canceladas"] += 1
+        else:
+            contagem["pendentes"] += 1
+
+    for ag in ags_passados:
+        vespera = ag.data_hora.date() - timedelta(days=1)
+        n = Notificacao(tipo=TipoNotificacao.LEMBRETE_AGENDAMENTO, id_agendamento=ag.id_agendamento,
+                        data_envio_prevista=vespera, criado_em=ag.data_hora - timedelta(days=rnd.randint(2, 6)))
+        if not ag.cliente.aceita_mensagens:
+            n.status_envio, n.motivo_cancelamento = StatusEnvio.CANCELADO, MOTIVO_SEM_ACEITE
+        elif ag.status is StatusAgendamento.CANCELADO and rnd.random() < 0.5:
+            n.status_envio, n.motivo_cancelamento = StatusEnvio.CANCELADO, MOTIVO_AGENDAMENTO_CANCELADO
+        elif normalizar_celular(ag.cliente.contato) is None:
+            n.status_envio, n.motivo_cancelamento = StatusEnvio.CANCELADO, "Cliente sem celular"
+        else:
+            marcar_enviada(n, datetime.combine(vespera, datetime.min.time()) + timedelta(hours=17),
+                           mensagem_lembrete(ag, vespera))
+        contagem["enviadas" if n.status_envio is StatusEnvio.ENVIADO else "canceladas"] += 1
+        s.add(n)
+    s.flush()
+    return contagem
+
+
 def remover() -> None:
     with get_session() as s:
         ids_c = list(s.scalars(select(Cliente.id_cliente).where(Cliente.nome.like(f"%{MARCA}"))))
@@ -148,6 +212,7 @@ def remover() -> None:
         if ids_c:
             s.execute(delete(Agendamento).where(Agendamento.id_cliente.in_(ids_c)))
         if ids_os:
+            s.execute(delete(Notificacao).where(Notificacao.id_ordem_servico.in_(ids_os)))  # RF07
             s.execute(delete(OsProduto).where(OsProduto.id_ordem_servico.in_(ids_os)))
             s.execute(delete(OrdemServico).where(OrdemServico.id_ordem_servico.in_(ids_os)))
         if ids_p:
@@ -181,9 +246,12 @@ def gerar() -> None:
         clientes, veiculos = [], []  # veiculos: (id_cliente, id_veiculo)
         for n in range(50):
             nome = f"{NOMES[n % len(NOMES)]} {SOBRENOMES[(n * 7) % len(SOBRENOMES)]}{MARCA}"
-            c = clientes_srv.cadastrar(nome, cpf_valido(900_000_100 + n), f"(54) 99{n:03d}-{1000 + n * 37 % 9000:04d}",
+            contato = (f"(54) 3312-{1000 + n * 37:04d}" if n in TELEFONE_FIXO  # RF07: sem WhatsApp
+                       else f"(54) 99{n:03d}-{1000 + n * 37 % 9000:04d}")
+            c = clientes_srv.cadastrar(nome, cpf_valido(900_000_100 + n), contato,
                                        idade=rnd.randint(19, 78),
-                                       endereco=f"{rnd.choice(RUAS)}, {rnd.randint(10, 2500)} - Passo Fundo")
+                                       endereco=f"{rnd.choice(RUAS)}, {rnd.randint(10, 2500)} - Passo Fundo",
+                                       aceita_mensagens=n not in NAO_ACEITAM)
             clientes.append(c.id_cliente)
         for n in range(70):
             dono = clientes[n] if n < 50 else rnd.choice(clientes)
@@ -325,9 +393,14 @@ def gerar() -> None:
             s.execute(update(OrdemServico).where(OrdemServico.id_ordem_servico == id_os).values(
                 criado_em=criada, atualizado_em=entregue or criada, entregue_em=entregue))
         # agendamentos passados: gravados direto (o serviço não aceita data passada)
+        ags_passados = []
         for id_cliente, id_veiculo, tipo, quando, duracao, status, id_os in agend_passados:
-            s.add(Agendamento(id_cliente=id_cliente, id_veiculo=id_veiculo, tipo_servico=tipo, data_hora=quando,
-                              duracao_estimada_horas=duracao, status=status, id_ordem_servico=id_os))
+            ag = Agendamento(id_cliente=id_cliente, id_veiculo=id_veiculo, tipo_servico=tipo, data_hora=quando,
+                             duracao_estimada_horas=duracao, status=status, id_ordem_servico=id_os)
+            s.add(ag)
+            ags_passados.append(ag)
+        s.flush()
+        notif = ajustar_notificacoes(s, rnd, datas_os, ags_passados, hoje)
         s.commit()
 
         # --- agendamentos futuros (pelo serviço: valida o limite de 2 simultâneos) ---
@@ -362,6 +435,8 @@ def gerar() -> None:
               f"({entregues} entregues) de {inicio:%m/%Y} a {hoje:%m/%Y}.")
         print(f"Agendamentos: {len(agend_passados)} passados, {criados} futuros "
               f"({recusados} recusados pelo limite da agenda, como na tela). OS recusadas por estoque: {puladas}.")
+        print("Notificações (RF07): {enviadas} enviadas, {canceladas} canceladas e {pendentes} pendentes "
+              "(pós-venda e lembretes passados), mais os lembretes dos agendamentos futuros.".format(**notif))
         print(f"Tempo: {time.perf_counter() - t0:.0f} s. Para apagar tudo: python gerar_dados_exemplo.py --remover")
 
 

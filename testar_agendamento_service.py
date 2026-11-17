@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 
 from src.config.database import SessionLocal, engine, get_session
 from src.persistencia.models import (
+    Notificacao,
     Agendamento, Cliente, OrdemServico, StatusAgendamento, StatusOrdemServico, Veiculo,
 )
 from src.servico.agendamento_service import AgendamentoService
@@ -65,6 +66,8 @@ def limpar() -> None:
         ids_c = list(s.scalars(select(Cliente.id_cliente).where(Cliente.cpf.in_(CPFS))))
         if ids_c:
             s.execute(delete(Agendamento).where(Agendamento.id_cliente.in_(ids_c)))
+            s.execute(delete(Notificacao).where(Notificacao.id_ordem_servico.in_(  # RF07
+                select(OrdemServico.id_ordem_servico).where(OrdemServico.id_cliente.in_(ids_c)))))
             s.execute(delete(OrdemServico).where(OrdemServico.id_cliente.in_(ids_c)))
             s.execute(delete(Veiculo).where(Veiculo.id_cliente.in_(ids_c)))
             s.execute(delete(Cliente).where(Cliente.id_cliente.in_(ids_c)))

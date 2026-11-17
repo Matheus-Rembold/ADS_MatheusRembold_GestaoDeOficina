@@ -35,6 +35,7 @@ from sqlalchemy import delete, func, select
 from src.config.database import engine, get_session
 from src.controle.relatorio_controller import RelatorioController
 from src.persistencia.models import (
+    Notificacao,
     Cliente, MovimentacaoEstoque, OrdemServico, OsProduto, Produto,
     StatusOrdemServico, TipoMovimentacao, Veiculo,
 )
@@ -80,6 +81,7 @@ def limpar() -> None:
         ids_os = list(s.scalars(select(OrdemServico.id_ordem_servico).where(
             OrdemServico.id_cliente.in_(ids_c)))) if ids_c else []
         if ids_os:
+            s.execute(delete(Notificacao).where(Notificacao.id_ordem_servico.in_(ids_os)))  # RF07
             s.execute(delete(OsProduto).where(OsProduto.id_ordem_servico.in_(ids_os)))
             s.execute(delete(OrdemServico).where(OrdemServico.id_ordem_servico.in_(ids_os)))
         if ids_p:
