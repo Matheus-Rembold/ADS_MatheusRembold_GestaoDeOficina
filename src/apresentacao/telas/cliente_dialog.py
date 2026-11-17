@@ -14,6 +14,7 @@ from typing import List, Optional
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIntValidator
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QFormLayout,
     QHBoxLayout,
@@ -28,7 +29,9 @@ from src.controle.cliente_controller import (
     ClienteDTO,
     ErroDeNegocio,
     ValidacaoError,
+    celular_valido,
 )
+from src.apresentacao.componentes import destacar
 
 logger = logging.getLogger(__name__)
 
@@ -83,12 +86,28 @@ class ClienteDialog(QDialog):
         self._endereco.setMaxLength(255)
         self._endereco.setPlaceholderText("Opcional")
 
+        # RF07 (LGPD/RNF04): o cliente escolhe se quer receber mensagens.
+        self._aceita = QCheckBox("Aceita receber mensagens pelo WhatsApp")
+        self._aceita.setChecked(True)
+        self._aceita.setToolTip(
+            "Pós-venda 7 dias após a entrega e lembrete na véspera do agendamento.\n"
+            "Desmarcar cancela as mensagens que ainda não foram enviadas."
+        )
+        # Prévia ao vivo (Nielsen: prevenção de erros): avisa antes de salvar
+        # que o contato não serve para o WhatsApp. Não bloqueia: pode ser um fixo.
+        self._aviso_celular = QLabel()
+        self._aviso_celular.setObjectName("subtitulo")
+        self._aviso_celular.setWordWrap(True)
+        self._contato.textChanged.connect(self._atualizar_aviso_celular)
+        self._aceita.toggled.connect(self._atualizar_aviso_celular)
+
         if cliente is not None:
             self._nome.setText(cliente.nome)
             self._cpf.setText(cliente.cpf)
             self._contato.setText(cliente.contato)
             self._idade.setText("" if cliente.idade is None else str(cliente.idade))
             self._endereco.setText(cliente.endereco or "")
+            self._aceita.setChecked(cliente.aceita_mensagens)
 
         formulario = QFormLayout()
         formulario.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
@@ -98,6 +117,9 @@ class ClienteDialog(QDialog):
         formulario.addRow("Contato *", self._contato)
         formulario.addRow("Idade", self._idade)
         formulario.addRow("Endereço", self._endereco)
+        formulario.addRow("", self._aceita)
+        formulario.addRow("", self._aviso_celular)
+        self._atualizar_aviso_celular()
 
         dica = QLabel("* campo obrigatório")
         dica.setObjectName("subtitulo")
@@ -142,6 +164,7 @@ class ClienteDialog(QDialog):
             self._contato.text(),
             idade,
             self._endereco.text(),
+            self._aceita.isChecked(),
         )
 
         try:
@@ -160,6 +183,18 @@ class ClienteDialog(QDialog):
             )
         else:
             self.accept()
+
+    def _atualizar_aviso_celular(self, *_args) -> None:
+        contato = self._contato.text().strip()
+        mostrar = self._aceita.isChecked() and bool(contato) and not celular_valido(contato)
+        self._aviso_celular.setText(
+            "Não parece um celular com DDD, ex.: (54) 99999-1234. "
+            "Sem celular não dá para enviar mensagens pelo WhatsApp." if mostrar else ""
+        )
+        self._aviso_celular.setVisible(mostrar)
+        destacar(self._aviso_celular, "alerta", mostrar)
+        if self.isVisible():
+            self.adjustSize()  # o aviso tem 2 linhas: a janela cresce para não cortá-lo
 
     def _mostrar_erros(self, erros: List[str]) -> None:
         if erros:

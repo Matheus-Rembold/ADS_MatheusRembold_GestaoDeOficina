@@ -26,6 +26,7 @@ from src.servico.excecoes import (
     ValidacaoError,
 )
 from src.servico.validadores import cpf_valido, formatar_cpf, somente_digitos
+from src.servico.notificacao_service import NotificacaoService
 from src.servico.paginacao import POR_PAGINA, Pagina, montar_pagina
 
 
@@ -44,13 +45,14 @@ class ClienteService:
         contato: str,
         idade: Optional[int] = None,
         endereco: Optional[str] = None,
+        aceita_mensagens: bool = True,
     ) -> Cliente:
         dados = self._validar_dados(nome, cpf, contato, idade, endereco)
 
         if self._repo.buscar_por_cpf(dados["cpf"]) is not None:
             raise RegistroDuplicadoError("Já existe um cliente cadastrado com este CPF.")
 
-        cliente = self._repo.adicionar(Cliente(**dados))
+        cliente = self._repo.adicionar(Cliente(**dados, aceita_mensagens=bool(aceita_mensagens)))
         self._confirmar()
         return cliente
 
@@ -65,6 +67,7 @@ class ClienteService:
         contato: str,
         idade: Optional[int] = None,
         endereco: Optional[str] = None,
+        aceita_mensagens: bool = True,
     ) -> Cliente:
         cliente = self.obter(id_cliente)  # regra: só edita quem já existe
         dados = self._validar_dados(nome, cpf, contato, idade, endereco)
@@ -76,6 +79,12 @@ class ClienteService:
 
         for campo, valor in dados.items():
             setattr(cliente, campo, valor)  # o UPDATE é gerado no commit
+        aceita_mensagens = bool(aceita_mensagens)
+        if aceita_mensagens != cliente.aceita_mensagens:
+            # RF07 (LGPD): recusou -> cancela as mensagens pendentes; voltou a aceitar -> reativa
+            cliente.aceita_mensagens = aceita_mensagens
+            self._session.flush()
+            NotificacaoService(self._session).aceite_alterado(cliente.id_cliente, aceita_mensagens)
         self._confirmar()
         return cliente
 

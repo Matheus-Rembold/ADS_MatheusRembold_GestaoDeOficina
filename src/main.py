@@ -10,6 +10,10 @@ Executável (PyInstaller, RNF07):
     Camaro.exe --verificar             # resultado em %LOCALAPPDATA%\\Camaro\\camaro.log
 
 O .env fica na raiz do projeto (desenvolvimento) ou ao lado do Camaro.exe.
+
+Fluxo (RF10): banco disponível -> sem nenhum usuário? configuração inicial
+(cria o dono) -> login -> janela principal. "Sair" destrói a janela e volta
+ao login; fechar a janela, ou cancelar o login, encerra o programa.
 """
 import logging
 import sys
@@ -18,7 +22,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from src.config.ambiente import (
     ARQUIVO_ENV,
@@ -30,6 +34,10 @@ from src.config.ambiente import (
 configurar_log()  # antes de tudo: qualquer erro daqui em diante vai para o arquivo
 
 from src.apresentacao.janela_principal import JanelaPrincipal  # noqa: E402
+from src.apresentacao.telas.configuracao_inicial_dialog import ConfiguracaoInicialDialog  # noqa: E402
+from src.apresentacao.telas.login_dialog import LoginDialog  # noqa: E402
+from src.controle.autenticacao_controller import AutenticacaoController  # noqa: E402
+from src.controle.sessao import sessao  # noqa: E402
 from src.apresentacao.tema import estilo_global  # noqa: E402
 from src.config.database import DB_HOST, DB_NAME, DB_PORT, engine  # noqa: E402
 
@@ -100,6 +108,25 @@ def verificar() -> int:
         app.quit()
         return 1
 
+    def tabela_de_usuarios():
+        configurar = AutenticacaoController().precisa_configuracao_inicial()
+        return "nenhum usuário ainda: o sistema vai pedir a configuração inicial" if configurar else "usuários cadastrados"
+
+    passo("tabela de usuários (login)", tabela_de_usuarios)
+
+    def bcrypt_funciona():
+        import bcrypt  # extensão compilada: é o que mais pode faltar no executável
+        h = bcrypt.hashpw(b"verificacao", bcrypt.gensalt(4))
+        if not bcrypt.checkpw(b"verificacao", h):
+            raise RuntimeError("bcrypt não confere")
+        return f"bcrypt {bcrypt.__version__}"
+
+    passo("hash de senha (bcrypt)", bcrypt_funciona)
+
+    # Sessão interna de diagnóstico (perfil dono, só em memória): sem ela as
+    # telas seriam recusadas pelo guard, porque aqui ninguém faz login.
+    sessao.entrar_sistema()
+
     def abrir_telas():
         janela = JanelaPrincipal()
         for i in range(janela._paginas.count()):
@@ -164,9 +191,59 @@ def main() -> int:
         )
         return 1
 
-    janela = JanelaPrincipal()
-    janela.show()
+    aplicacao = Aplicacao(app)
+    if not aplicacao.iniciar():
+        return 0  # cancelou a configuração inicial ou o login
     return app.exec()
+
+
+class Aplicacao:
+    """Liga login e janela principal: entrar, sair e voltar ao login."""
+
+    def __init__(self, app: QApplication) -> None:
+        self._app = app
+        self._auth = AutenticacaoController()
+        self._janela = None
+        self._ultimo_login = ""
+        # Quem encerra o programa é o fechamento da janela principal (closeEvent),
+        # não "a última janela fechou": no "Sair" a janela some antes do login abrir.
+        app.setQuitOnLastWindowClosed(False)
+
+    def iniciar(self) -> bool:
+        if self._auth.precisa_configuracao_inicial():
+            dialogo = ConfiguracaoInicialDialog(self._auth)
+            if dialogo.exec() != QDialog.DialogCode.Accepted:
+                return False
+            self._ultimo_login = dialogo.resultado.login
+        elif not self._pedir_login():
+            return False
+        self._abrir_janela()
+        return True
+
+    def _pedir_login(self) -> bool:
+        dialogo = LoginDialog(self._auth, self._ultimo_login)
+        if dialogo.exec() != QDialog.DialogCode.Accepted:
+            return False
+        self._ultimo_login = dialogo.resultado.login
+        return True
+
+    def _abrir_janela(self) -> None:
+        self._janela = JanelaPrincipal()
+        self._janela.saiu.connect(self._sair)
+        self._janela.fechou.connect(self._app.quit)
+        self._janela.show()
+
+    def _sair(self) -> None:
+        """Destrói a janela inteira: nada do usuário anterior fica em memória."""
+        janela, self._janela = self._janela, None
+        janela.hide()
+        janela.deleteLater()
+        self._auth.sair()
+        logger.info("Sessão encerrada (Sair)")
+        if self._pedir_login():
+            self._abrir_janela()
+        else:
+            self._app.quit()
 
 
 if __name__ == "__main__":

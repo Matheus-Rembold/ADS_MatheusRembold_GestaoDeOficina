@@ -15,7 +15,9 @@ CREATE TABLE cliente (
     cpf             VARCHAR(14) NOT NULL UNIQUE,
     contato         VARCHAR(20) NOT NULL ,
     endereco        VARCHAR(255),
-    criado_em       TIMESTAMP NOT NULL DEFAULT NOW()
+    criado_em       TIMESTAMP NOT NULL DEFAULT NOW(),
+    -- RF07 (LGPD/RNF04): o cliente pode recusar mensagens pelo WhatsApp
+    aceita_mensagens BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 -- ------------------------------------------------------------
@@ -165,17 +167,55 @@ CREATE TABLE movimentacao_estoque (
 
 -- ------------------------------------------------------------
 -- 9. NOTIFICACAO
--- RF07 — 0..1 por ORDEM_SERVICO: o UNIQUE na FK garante que
--- uma OS tenha no máximo uma notificação vinculada
+-- RF07 — mensagens pelo WhatsApp (link wa.me), de dois tipos:
+--   pos_venda            -> 0..1 por ORDEM_SERVICO, 7 dias após a entrega
+--   lembrete_agendamento -> 0..1 por AGENDAMENTO, na véspera do horário
+-- O CHECK ck_notificacao_alvo garante que cada tipo aponte para o
+-- registro certo. As colunas novas ficam no fim (iguais ao banco migrado).
 -- ------------------------------------------------------------
 CREATE TABLE notificacao (
     id_notificacao          SERIAL PRIMARY KEY,
-    id_ordem_servico        INT NOT NULL UNIQUE REFERENCES ordem_servico(id_ordem_servico),
+    id_ordem_servico        INT UNIQUE REFERENCES ordem_servico(id_ordem_servico),
     status_envio            VARCHAR(20) NOT NULL DEFAULT 'pendente'
+                                CONSTRAINT ck_notificacao_status_envio
                                 CHECK (status_envio IN ('pendente', 'enviado', 'cancelado')),
     data_envio_prevista     DATE,
-    data_envio_real         TIMESTAMP
+    data_envio_real         TIMESTAMP,
+    tipo                    VARCHAR(25) NOT NULL DEFAULT 'pos_venda'
+                                CONSTRAINT ck_notificacao_tipo
+                                CHECK (tipo IN ('pos_venda', 'lembrete_agendamento')),
+    id_agendamento          INT UNIQUE REFERENCES agendamento(id_agendamento) ON DELETE CASCADE,
+    mensagem                TEXT,           -- texto exato enviado (histórico)
+    motivo_cancelamento     VARCHAR(150),
+    criado_em               TIMESTAMP NOT NULL DEFAULT NOW(),
+    CONSTRAINT ck_notificacao_alvo CHECK (
+        (tipo = 'pos_venda' AND id_ordem_servico IS NOT NULL AND id_agendamento IS NULL)
+        OR (tipo = 'lembrete_agendamento' AND id_agendamento IS NOT NULL AND id_ordem_servico IS NULL)
+    )
 );
+
+-- ------------------------------------------------------------
+-- 10. USUARIO
+-- RF10 — login com dois perfis (dono e mecânico). A senha é guardada só
+-- como hash bcrypt (60 caracteres, sal embutido), nunca em texto. Não há
+-- usuário inicial: com a tabela vazia, o sistema abre a configuração inicial.
+-- ------------------------------------------------------------
+CREATE TABLE usuario (
+    id_usuario          SERIAL PRIMARY KEY,
+    nome                VARCHAR(100) NOT NULL,
+    login               VARCHAR(30) NOT NULL
+                            CONSTRAINT ck_usuario_login_minusculo CHECK (login = LOWER(login)),
+    senha_hash          VARCHAR(60) NOT NULL,
+    perfil              VARCHAR(20) NOT NULL
+                            CONSTRAINT ck_usuario_perfil CHECK (perfil IN ('dono', 'mecanico')),
+    ativo               BOOLEAN NOT NULL DEFAULT TRUE,
+    tentativas_falhas   INT NOT NULL DEFAULT 0
+                            CONSTRAINT ck_usuario_tentativas CHECK (tentativas_falhas >= 0),
+    bloqueado_ate       TIMESTAMP,
+    ultimo_login_em     TIMESTAMP,
+    criado_em           TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX uq_usuario_login ON usuario (LOWER(login));
 
 -- ------------------------------------------------------------
 -- ÍNDICES DE APOIO
@@ -192,6 +232,8 @@ CREATE INDEX idx_movimentacao_data      ON movimentacao_estoque(data_movimentaca
 CREATE INDEX idx_os_produto_produto     ON os_produto(id_produto);
 -- RF06: os relatórios filtram as OS entregues pelo período de entrega
 CREATE INDEX idx_os_entregue_em         ON ordem_servico(entregue_em);
+-- RF07: a tela de notificações filtra por situação e data prevista
+CREATE INDEX idx_notificacao_previsao   ON notificacao(status_envio, data_envio_prevista);
 
 
 

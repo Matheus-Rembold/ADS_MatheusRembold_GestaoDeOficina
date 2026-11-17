@@ -39,3 +39,23 @@ class RegistroNaoEncontradoError(ErroDeNegocio):
 
 class OperacaoNaoPermitidaError(ErroDeNegocio):
     """A regra de negócio proíbe a operação (ex.: HU03)."""
+
+
+# --- Autenticação (RF10) ---------------------------------------------------
+class CredenciaisInvalidasError(ErroDeNegocio):
+    """Login inexistente, senha errada ou usuário inativo: SEMPRE a mesma mensagem."""
+
+    MENSAGEM = "Usuário ou senha inválidos."
+
+    def __init__(self) -> None:
+        super().__init__(self.MENSAGEM)
+
+
+class UsuarioBloqueadoError(ErroDeNegocio):
+    """Muitas tentativas erradas: o usuário fica bloqueado por um tempo."""
+
+    def __init__(self, segundos_restantes: int) -> None:
+        self.segundos_restantes = max(1, int(segundos_restantes))
+        minutos, segundos = divmod(self.segundos_restantes, 60)
+        tempo = f"{minutos} min {segundos:02d} s" if minutos else f"{segundos} s"
+        super().__init__(f"Muitas tentativas sem sucesso. Tente novamente em {tempo}.")
