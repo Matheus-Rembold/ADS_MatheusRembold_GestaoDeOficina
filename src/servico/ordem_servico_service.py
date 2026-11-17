@@ -50,6 +50,7 @@ from src.servico.excecoes import (
     RegistroNaoEncontradoError,
     ValidacaoError,
 )
+from src.servico.notificacao_service import NotificacaoService
 from src.servico.paginacao import POR_PAGINA, Pagina, montar_pagina
 
 QUILOMETRAGEM_MAXIMA = 10_000_000
@@ -59,6 +60,23 @@ DESCRICAO_MAXIMA = 2000
 TIPO_SERVICO_MAXIMO = 150
 
 Numero = Union[int, float, Decimal]
+
+
+# Cartões da tela de OS: o que está na oficina agora (decidido em 16/11/2026)
+SITUACOES_DO_PAINEL = (
+    StatusOrdemServico.ANDAMENTO,
+    StatusOrdemServico.PRONTO,
+    StatusOrdemServico.AGUARDANDO_PAGAMENTO,
+)
+
+
+@dataclass(frozen=True)
+class ResumoSituacao:
+    """Quantas OS estão numa situação e quanto valem (peças + mão de obra)."""
+
+    status: StatusOrdemServico
+    quantidade: int
+    valor: Decimal
 
 
 @dataclass(frozen=True)
@@ -246,6 +264,9 @@ class OrdemServicoService:
         os_.entregue_em = datetime.now() if novo is StatusOrdemServico.ENTREGUE else None
         os_.atualizado_em = datetime.now()
         self._repo.flush()
+        if novo is StatusOrdemServico.ENTREGUE:
+            # RF07: pós-venda 7 dias depois da entrega, na MESMA transação
+            NotificacaoService(self._session).criar_pos_venda(os_)
         self._confirmar()
         return self._recarregar(id_os)
 
@@ -293,6 +314,15 @@ class OrdemServicoService:
             lambda limite, desloc: self._repo.listar_pagina(termo, status, limite, desloc), por_pagina,
             resumo={"valor_total": self._repo.somar_total(termo, status)},
         )
+
+    def painel_situacao(self) -> List[ResumoSituacao]:
+        """
+        Cartões da tela de OS: em andamento, serviço realizado e aguardando pagamento.
+        Contam TODAS as OS (ignoram a busca e o filtro da lista): mostram a
+        situação da oficina agora. Situação sem OS aparece com zero.
+        """
+        totais = self._repo.resumo_por_situacao(SITUACOES_DO_PAINEL)
+        return [ResumoSituacao(s, *totais.get(s, (0, Decimal("0")))) for s in SITUACOES_DO_PAINEL]
 
     def listar_por_veiculo(self, id_veiculo: int) -> List[OrdemServico]:
         return self._repo.listar_por_veiculo(id_veiculo)

@@ -50,6 +50,7 @@ from src.apresentacao.componentes import (
     preenchendo_tabela,
 )
 from src.apresentacao.tema import ERRO
+from src.controle.sessao import Permissao, sessao
 from src.controle.ordem_servico_controller import (
     ErroDeNegocio,
     ItemOS,
@@ -241,7 +242,7 @@ class OrdemServicoDialog(QDialog):
         self._mao_de_obra.textChanged.connect(lambda _t: self._atualizar_totais())
 
     def _travar(self) -> None:
-        """Modo somente leitura (OS pronta ou além)."""
+        """Modo somente leitura (OS com serviço realizado ou além)."""
         for w in (self._cliente, self._veiculo, self._km, self._tipo, self._descricao,
                   self._mao_de_obra, self._produto, self._qtd, self._preco,
                   self._btn_peca, self._btn_remover):
@@ -250,7 +251,7 @@ class OrdemServicoDialog(QDialog):
         for w in (self._produto, self._qtd, self._preco, self._btn_peca, self._btn_remover, self._referencia):
             w.hide()  # nada a adicionar em OS travada
         self._aviso_estoque.setText(
-            "Esta OS está travada para edição (peças e valores não mudam depois de prontos). "
+            "Esta OS está travada para edição (peças e valores não mudam depois do serviço realizado). "
             "Só a situação pode ser alterada, na lista de ordens de serviço."
         )
 
@@ -326,10 +327,11 @@ class OrdemServicoDialog(QDialog):
         p = self._produtos[id_produto]
         venda = formatar_moeda(p.preco_venda) if p.preco_venda is not None else "não definido (informe o preço)"
         custo = self._custo_de(id_produto)
-        custo_txt = formatar_moeda(custo) if custo is not None else "sem compra registrada"
-        self._referencia.setText(
-            f"Preço de venda: {venda}   •   Custo: {custo_txt}   •   Em estoque: {p.quantidade}"
-        )
+        partes = [f"Preço de venda: {venda}"]
+        if sessao.pode(Permissao.VER_CUSTOS):  # RF10: o mecânico não vê o custo
+            partes.append("Custo: " + (formatar_moeda(custo) if custo is not None else "sem compra registrada"))
+        partes.append(f"Em estoque: {p.quantidade}")
+        self._referencia.setText("   •   ".join(partes))
         if id_produto in self._itens:  # já está na OS: carrega para editar (preço GRAVADO)
             self._qtd.setText(str(self._itens[id_produto][0]))
             self._preco.setText(f"{self._itens[id_produto][1]:.2f}".replace(".", ","))

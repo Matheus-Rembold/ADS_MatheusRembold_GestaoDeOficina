@@ -14,6 +14,8 @@ from typing import Callable, List, Optional
 from sqlalchemy.orm import Session
 
 from src.config.database import SessionLocal
+from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
+from src.servico.permissoes import Permissao
 from src.persistencia.models import MovimentacaoEstoque, TipoMovimentacao
 from src.servico.movimentacao_estoque_service import MovimentacaoEstoqueService
 from src.servico.precificacao import preco_sugerido_divergente
@@ -85,6 +87,7 @@ class ProdutoOpcaoDTO:
     preco_venda: Optional[Decimal] = None  # pré-preenche o valor da venda por fora
 
 
+@protegido(Permissao.ESTOQUE)  # mecânico não acessa o Estoque
 class MovimentacaoEstoqueController:
     def __init__(self, session_factory: Callable[[], Session] = SessionLocal) -> None:
         self._session_factory = session_factory

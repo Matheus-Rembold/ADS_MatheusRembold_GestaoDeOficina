@@ -6,7 +6,8 @@ faz commit (só flush); o commit é do serviço.
 """
 from __future__ import annotations
 
-from typing import List, Optional, Sequence
+from decimal import Decimal
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -83,6 +84,31 @@ class OrdemServicoRepository:
             self._session, self._consulta(termo, status), ordem=self._ORDEM, opcoes=self._OPCOES,
             limite=limite, deslocamento=deslocamento,
         )
+
+    def resumo_por_situacao(
+        self, situacoes: Sequence[StatusOrdemServico]
+    ) -> Dict[StatusOrdemServico, Tuple[int, Decimal]]:
+        """
+        {situação: (quantidade de OS, valor somado)} numa consulta só (GROUP BY).
+        O valor de cada OS = mão de obra + soma das peças (quantidade x preço);
+        as peças são somadas antes, só das OS dessas situações.
+        """
+        alvo = select(OrdemServico.id_ordem_servico).where(OrdemServico.status.in_(situacoes))
+        pecas = (
+            select(OsProduto.id_ordem_servico.label("id_os"),
+                   func.sum(OsProduto.quantidade_utilizada * OsProduto.preco_unitario).label("valor"))
+            .where(OsProduto.id_ordem_servico.in_(alvo))
+            .group_by(OsProduto.id_ordem_servico)
+            .subquery()
+        )
+        stmt = (
+            select(OrdemServico.status, func.count(),
+                   func.coalesce(func.sum(OrdemServico.valor_mao_de_obra + func.coalesce(pecas.c.valor, 0)), 0))
+            .outerjoin(pecas, pecas.c.id_os == OrdemServico.id_ordem_servico)
+            .where(OrdemServico.status.in_(situacoes))
+            .group_by(OrdemServico.status)
+        )
+        return {status: (int(qtd), Decimal(valor)) for status, qtd, valor in self._session.execute(stmt)}
 
     def somar_total(self, termo: str = "", status: Optional[StatusOrdemServico] = None):
         """Valor total (peças + mão de obra) de TODAS as OS do filtro, calculado no banco."""

@@ -5,7 +5,7 @@ Regras (decididas com o Matheus em 07/11/2026, ver CLAUDE.md seção 5):
 
 - ENTRADAS (ganhos) = OS ENTREGUES no período, pela data entregue_em
   (peças + mão de obra), + VENDAS POR FORA (venda_avulsa.valor).
-  É regime de CAIXA: só conta o que tem data comprovada. "Pronto" e
+  É regime de CAIXA: só conta o que tem data comprovada. "Serviço realizado" e
   "aguardando pagamento" não têm data própria no banco.
 - A RECEBER = OS em "aguardando pagamento" (cartão à parte, sem filtro de data).
 - SAÍDAS (gastos) = compras − ressarcimentos de devolução, pela data da

@@ -6,7 +6,8 @@ from src.persistencia.models.ordem_servico import OrdemServico, StatusOrdemServi
 from src.persistencia.models.os_produto import OsProduto
 from src.persistencia.models.agendamento import Agendamento, StatusAgendamento
 from src.persistencia.models.movimentacao_estoque import MovimentacaoEstoque, TipoMovimentacao
-from src.persistencia.models.notificacao import Notificacao
+from src.persistencia.models.notificacao import Notificacao, StatusEnvio, TipoNotificacao
+from src.persistencia.models.usuario import PerfilUsuario, Usuario
 
 __all__ = [
     "Cliente",
@@ -21,4 +22,8 @@ __all__ = [
     "MovimentacaoEstoque",
     "TipoMovimentacao",
     "Notificacao",
+    "StatusEnvio",
+    "TipoNotificacao",
+    "PerfilUsuario",
+    "Usuario",
 ]

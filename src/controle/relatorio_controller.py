@@ -17,6 +17,8 @@ from typing import Callable, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from src.config.database import SessionLocal
+from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
+from src.servico.permissoes import Permissao
 from src.servico.exportacao_relatorio import CODIFICACAO, gerar_csv
 from src.servico.relatorio_service import (  # noqa: F401  (reexportados para a tela)
     AGRUPA_DIA,
@@ -42,6 +44,7 @@ __all__ = [
 ]
 
 
+@protegido(Permissao.RELATORIOS)  # mecânico não acessa os Relatórios
 class RelatorioController:
     def __init__(self, session_factory: Callable[[], Session] = SessionLocal) -> None:
         self._session_factory = session_factory

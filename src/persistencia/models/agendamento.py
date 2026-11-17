@@ -75,6 +75,10 @@ class Agendamento(Base):
 
     cliente: Mapped["Cliente"] = relationship(back_populates="agendamentos")
     veiculo: Mapped["Veiculo"] = relationship(back_populates="agendamentos")
+    # RF07: lembrete da véspera (o banco apaga junto: ON DELETE CASCADE)
+    notificacao: Mapped[Optional["Notificacao"]] = relationship(
+        back_populates="agendamento", uselist=False, passive_deletes=True
+    )
 
     @property
     def termino_previsto(self) -> datetime:

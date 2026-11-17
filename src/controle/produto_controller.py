@@ -13,6 +13,8 @@ from typing import Callable, List, Optional
 from sqlalchemy.orm import Session
 
 from src.config.database import SessionLocal
+from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
+from src.servico.permissoes import Permissao
 from src.persistencia.models import Produto
 from src.servico.produto_service import ProdutoService
 
@@ -63,14 +65,24 @@ class ProdutoDTO:
             quantidade=produto.quantidade,
             quantidade_minima=produto.quantidade_minima,
             estoque_baixo=produto.estoque_baixo,
-            valor_unitario=produto.valor_unitario,
+            # Custo e margem são informação comercial do dono: quem não tem
+            # VER_CUSTOS recebe o DTO sem eles (o dado nem chega à tela).
+            valor_unitario=produto.valor_unitario if sessao.pode(Permissao.VER_CUSTOS) else None,
             preco_venda=produto.preco_venda,
             preco_venda_manual=produto.preco_venda_manual,
-            preco_sugerido=calcular_preco_venda(produto.valor_unitario),
-            margem=margem_sobre_custo(produto.preco_venda, produto.valor_unitario),
+            preco_sugerido=calcular_preco_venda(produto.valor_unitario) if sessao.pode(Permissao.VER_CUSTOS) else None,
+            margem=margem_sobre_custo(produto.preco_venda, produto.valor_unitario)
+            if sessao.pode(Permissao.VER_CUSTOS) else None,
         )
 
 
+# Mecânico só consulta; cadastrar, editar e excluir são do dono.
+@protegido(
+    Permissao.PRODUTOS_CONSULTAR,
+    cadastrar=Permissao.PRODUTOS_GERENCIAR,
+    atualizar=Permissao.PRODUTOS_GERENCIAR,
+    excluir=Permissao.PRODUTOS_GERENCIAR,
+)
 class ProdutoController:
     def __init__(self, session_factory: Callable[[], Session] = SessionLocal) -> None:
         self._session_factory = session_factory

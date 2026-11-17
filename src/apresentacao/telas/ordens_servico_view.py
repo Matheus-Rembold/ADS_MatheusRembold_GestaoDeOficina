@@ -6,7 +6,10 @@ Decisões de usabilidade (Nielsen, RNF01):
   partir da situação atual; "Excluir" só fica ativo para orçamento; passos com
   efeito no estoque ou sem volta pedem confirmação.
 - Visibilidade do estado do sistema: a situação aparece em texto e cor; o
-  rodapé mostra quantas OS e o valor somado das listadas.
+  rodapé mostra quantas OS e o valor somado das listadas; os cartões do topo
+  mostram quantas OS estão em andamento, com serviço realizado e aguardando pagamento
+  (a oficina inteira, sem depender da busca). Clicar num cartão filtra a
+  lista por aquela situação; clicar de novo volta para "Todas".
 - Reconhecimento em vez de memorização: a busca aceita cliente, placa,
   modelo, tipo de serviço, problema ou número da OS (histórico por cliente
   e por veículo = buscar pelo nome ou placa).
@@ -16,12 +19,13 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Dict, List, Optional
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -38,17 +42,26 @@ from src.apresentacao.componentes import (
     BarraPaginacao,
     aviso,
     confirmar,
+    destacar,
     erro_inesperado,
     formatar_moeda,
     preenchendo_tabela,
     texto_contagem,
 )
 from src.apresentacao.telas.ordem_servico_dialog import OrdemServicoDialog
-from src.apresentacao.tema import ERRO, SUCESSO
+from src.apresentacao.tema import (
+    COR_OS_AGUARDANDO,
+    COR_OS_ANDAMENTO,
+    COR_OS_ENTREGUE,
+    COR_OS_ORCAMENTO,
+    COR_OS_PRONTO,
+)
 from src.controle.ordem_servico_controller import (
     ErroDeNegocio,
     OrdemServicoController,
     OrdemServicoDTO,
+    ResumoSituacao,
+    SITUACOES_DO_PAINEL,
     StatusOrdemServico,
 )
 
@@ -56,12 +69,62 @@ COLUNAS = ["OS", "Data", "Cliente", "Veículo", "Serviço", "Situação", "Total
 COL_OS, COL_DATA, COL_CLIENTE, COL_VEICULO, COL_SERVICO, COL_STATUS, COL_TOTAL = range(7)
 
 _COR_STATUS: Dict[StatusOrdemServico, str] = {
-    StatusOrdemServico.ORCAMENTO: "#868E96",
-    StatusOrdemServico.ANDAMENTO: "#1C7ED6",
-    StatusOrdemServico.PRONTO: "#E67700",
-    StatusOrdemServico.AGUARDANDO_PAGAMENTO: ERRO,
-    StatusOrdemServico.ENTREGUE: SUCESSO,
+    StatusOrdemServico.ORCAMENTO: COR_OS_ORCAMENTO,
+    StatusOrdemServico.ANDAMENTO: COR_OS_ANDAMENTO,
+    StatusOrdemServico.PRONTO: COR_OS_PRONTO,
+    StatusOrdemServico.AGUARDANDO_PAGAMENTO: COR_OS_AGUARDANDO,
+    StatusOrdemServico.ENTREGUE: COR_OS_ENTREGUE,
 }
+
+_TITULO_CARTAO = {
+    StatusOrdemServico.ANDAMENTO: "EM ANDAMENTO",
+    StatusOrdemServico.PRONTO: "SERVIÇO REALIZADO",
+    StatusOrdemServico.AGUARDANDO_PAGAMENTO: "AGUARDANDO PAGAMENTO",
+}
+
+
+class CartaoSituacao(QFrame):
+    """Cartão clicável: título, quantidade grande (na cor da situação) e valor."""
+
+    clicado = pyqtSignal(object)  # StatusOrdemServico
+
+    def __init__(self, status: StatusOrdemServico, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.status = status
+        self.setObjectName("cartaoSituacao")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.titulo = QLabel(_TITULO_CARTAO[status])
+        self.titulo.setObjectName("cartaoSituacaoTitulo")
+        fonte = self.titulo.font()
+        fonte.setLetterSpacing(fonte.SpacingType.AbsoluteSpacing, 1)
+        self.titulo.setFont(fonte)
+        self.quantidade = QLabel("—")
+        self.quantidade.setObjectName("cartaoSituacaoValor")
+        self.quantidade.setProperty("situacao", status.value)
+        self.detalhe = QLabel("")
+        self.detalhe.setObjectName("cartaoSituacaoDetalhe")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 10, 16, 10)
+        layout.setSpacing(0)
+        for rotulo in (self.titulo, self.quantidade, self.detalhe):
+            rotulo.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            layout.addWidget(rotulo)
+
+    def atualizar(self, resumo: ResumoSituacao) -> None:
+        self.quantidade.setText(str(resumo.quantidade))
+        valor = formatar_moeda(resumo.valor)
+        a_receber = self.status is StatusOrdemServico.AGUARDANDO_PAGAMENTO
+        self.detalhe.setText(f"{valor} a receber" if a_receber else valor)
+        plural = "ordem de serviço" if resumo.quantidade == 1 else "ordens de serviço"
+        self.setToolTip(f"{resumo.quantidade} {plural} “{self.status.rotulo}”. Clique para ver só elas.")
+
+    def marcar(self, ativo: bool) -> None:
+        destacar(self, "ativo", ativo)
+
+    def mousePressEvent(self, evento) -> None:  # noqa: N802 (nome imposto pelo Qt)
+        if evento.button() == Qt.MouseButton.LeftButton:
+            self.clicado.emit(self.status)
+        super().mousePressEvent(evento)
 
 
 class OrdensServicoView(QWidget):
@@ -101,10 +164,14 @@ class OrdensServicoView(QWidget):
         cabecalho = QHBoxLayout()
         cabecalho.addLayout(bloco)
         cabecalho.addStretch(1)
+        # Ordem pedida pelo Matheus (16/11/2026): Nova OS primeiro, depois as ações da
+        # OS selecionada. O espaço separa a ação principal das ações da linha, e o
+        # "Excluir" fica no extremo oposto do "Nova OS" (prevenção de erros).
+        cabecalho.addWidget(self._btn_nova)
+        cabecalho.addSpacing(12)
         cabecalho.addWidget(self._btn_abrir)
         cabecalho.addWidget(self._btn_status)
         cabecalho.addWidget(self._btn_excluir)
-        cabecalho.addWidget(self._btn_nova)
 
         self._busca = QLineEdit()
         self._busca.setPlaceholderText("Buscar por cliente, placa, modelo, serviço, problema ou nº da OS…")
@@ -116,6 +183,16 @@ class OrdensServicoView(QWidget):
         filtros = QHBoxLayout()
         filtros.addWidget(self._busca, stretch=1)
         filtros.addWidget(self._filtro)
+
+        # Cartões de situação (Nielsen: visibilidade do estado do sistema)
+        self.cartoes: Dict[StatusOrdemServico, CartaoSituacao] = {}
+        linha_cartoes = QHBoxLayout()
+        linha_cartoes.setSpacing(12)
+        for status in SITUACOES_DO_PAINEL:
+            cartao = CartaoSituacao(status)
+            cartao.clicado.connect(self._filtrar_pelo_cartao)
+            self.cartoes[status] = cartao
+            linha_cartoes.addWidget(cartao, stretch=1)
 
         self._tabela = QTableWidget(0, len(COLUNAS))
         self._tabela.setHorizontalHeaderLabels(COLUNAS)
@@ -153,6 +230,7 @@ class OrdensServicoView(QWidget):
         raiz.setContentsMargins(32, 28, 32, 24)
         raiz.setSpacing(14)
         raiz.addLayout(cabecalho)
+        raiz.addLayout(linha_cartoes)
         raiz.addLayout(filtros)
         raiz.addWidget(self._tabela, stretch=1)
         raiz.addWidget(self._lbl_vazio, stretch=1)
@@ -189,6 +267,7 @@ class OrdensServicoView(QWidget):
             return
         self._pagina = self._ultima_pagina.pagina
         self._dtos = list(self._ultima_pagina.itens)
+        self._atualizar_cartoes()
         with preenchendo_tabela(self._tabela):  # evita o travamento quadrático ao recarregar
             self._preencher(selecionar)
 
@@ -234,6 +313,25 @@ class OrdensServicoView(QWidget):
         soma = pag.resumo.get("valor_total", Decimal("0"))
         self._lbl_total.setText(f"{texto}  •  total listado: {formatar_moeda(soma)}" if pag.total else texto)
         self._paginacao.atualizar(pag)
+
+    # ------------------------------------------------------------------
+    # Cartões de situação
+    # ------------------------------------------------------------------
+    def _atualizar_cartoes(self) -> None:
+        try:
+            for resumo in self._controller.painel_situacao():
+                self.cartoes[resumo.status].atualizar(resumo)
+        except Exception:  # noqa: BLE001  (os cartões são um extra: a lista continua funcionando)
+            for cartao in self.cartoes.values():
+                cartao.quantidade.setText("—")
+        filtro = self._filtro.currentData()
+        for status, cartao in self.cartoes.items():
+            cartao.marcar(status is filtro)
+
+    def _filtrar_pelo_cartao(self, status: StatusOrdemServico) -> None:
+        """Clique filtra por aquela situação; clicar no cartão já ativo volta para Todas."""
+        destino = None if self._filtro.currentData() is status else status
+        self._filtro.setCurrentIndex(self._filtro.findData(destino))  # o combo dispara o recarregar
 
     def _selecionada(self) -> Optional[OrdemServicoDTO]:
         linha = self._tabela.currentRow()

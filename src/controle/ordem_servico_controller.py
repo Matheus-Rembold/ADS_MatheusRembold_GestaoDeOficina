@@ -14,9 +14,16 @@ from typing import Callable, List, Optional, Sequence, Union
 from sqlalchemy.orm import Session
 
 from src.config.database import SessionLocal
+from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
+from src.servico.permissoes import Permissao
 from src.persistencia.models import OrdemServico, StatusOrdemServico
 from src.persistencia.repositories.ordem_servico_repository import OrdemServicoRepository
-from src.servico.ordem_servico_service import ItemOS, OrdemServicoService
+from src.servico.ordem_servico_service import (  # noqa: F401 (ResumoSituacao reexportado para a tela)
+    SITUACOES_DO_PAINEL,
+    ItemOS,
+    OrdemServicoService,
+    ResumoSituacao,
+)
 from src.servico.cliente_service import ClienteService
 
 from src.servico.paginacao import POR_PAGINA, Pagina  # noqa: F401 (reexportado para a tela)
@@ -88,7 +95,7 @@ class OrdemServicoDTO:
                 nome_produto=i.produto.nome,
                 quantidade=i.quantidade_utilizada,
                 preco_unitario=i.preco_unitario,
-                custo_unitario=i.custo_unitario,
+                custo_unitario=i.custo_unitario if sessao.pode(Permissao.VER_CUSTOS) else None,  # RF10
                 subtotal=i.subtotal,
             )
             for i in sorted(o.os_produtos, key=lambda x: x.produto.nome.lower())
@@ -136,6 +143,7 @@ class ProdutoParaOSDTO:
     preco_venda: Optional[Decimal] = None  # pré-preenche o preço da peça na OS
 
 
+@protegido(Permissao.ORDENS_SERVICO)
 class OrdemServicoController:
     def __init__(self, session_factory: Callable[[], Session] = SessionLocal) -> None:
         self._session_factory = session_factory
@@ -156,7 +164,9 @@ class OrdemServicoController:
     def listar_produtos(self) -> List[ProdutoParaOSDTO]:
         with self._session_factory() as session:
             return [
-                ProdutoParaOSDTO(p.id_produto, p.nome, p.quantidade, p.valor_unitario, p.preco_venda)
+                ProdutoParaOSDTO(p.id_produto, p.nome, p.quantidade,
+                                 p.valor_unitario if sessao.pode(Permissao.VER_CUSTOS) else None,  # RF10
+                                 p.preco_venda)
                 for p in OrdemServicoRepository(session).listar_produtos()
             ]
 
@@ -189,6 +199,11 @@ class OrdemServicoController:
         with self._session_factory() as session:
             resultado = OrdemServicoService(session).listar_pagina(termo, status, pagina)
             return resultado.com_itens(OrdemServicoDTO.de_modelo(o) for o in resultado.itens)
+
+    def painel_situacao(self) -> List[ResumoSituacao]:
+        """Cartões da tela: quantidade e valor das OS em andamento, com serviço realizado e aguardando pagamento."""
+        with self._session_factory() as session:
+            return OrdemServicoService(session).painel_situacao()  # dataclass imutável, sem ORM
 
     def listar_por_veiculo(self, id_veiculo: int) -> List[OrdemServicoDTO]:
         with self._session_factory() as session:

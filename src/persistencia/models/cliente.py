@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import String, SmallInteger, DateTime, func
+from sqlalchemy import Boolean, String, SmallInteger, DateTime, func, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.config.database import Base
@@ -25,6 +25,10 @@ class Cliente(Base):
     contato: Mapped[str] = mapped_column(String(20), nullable=False)
     endereco: Mapped[Optional[str]] = mapped_column(String(255))
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # RF07 (LGPD/RNF04): o cliente pode recusar mensagens pelo WhatsApp
+    aceita_mensagens: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
 
     # --- Relacionamentos (1 Cliente -> N Veiculo/OrdemServico/Agendamento) ---
     # back_populates="cliente" diz: "o outro lado desse relacionamento se

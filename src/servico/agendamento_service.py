@@ -17,6 +17,8 @@ Regras principais
 - Só agendamentos "agendado" podem ser editados, cancelados ou convertidos.
 - Converter em OS cria a OS em orçamento (cliente, veículo e tipo de serviço
   copiados) e marca o agendamento como "concluído", na MESMA transação.
+- RF07: criar o agendamento cria o lembrete da véspera; editar remarca;
+  cancelar ou converter cancela o lembrete pendente (mesma transação).
 - Mexer na agenda é serializado por um lock do banco, para duas janelas não
   furarem o limite de 2 ao mesmo tempo.
 """
@@ -35,6 +37,11 @@ from src.servico.excecoes import (
     OperacaoNaoPermitidaError,
     RegistroNaoEncontradoError,
     ValidacaoError,
+)
+from src.servico.notificacao_service import (
+    MOTIVO_AGENDAMENTO_CANCELADO,
+    MOTIVO_AGENDAMENTO_CONVERTIDO,
+    NotificacaoService,
 )
 from src.servico.ordem_servico_service import OrdemServicoService
 
@@ -85,6 +92,7 @@ class AgendamentoService:
             data_hora=dados["data_hora"], duracao_estimada_horas=dados["duracao"],
             status=StatusAgendamento.AGENDADO,
         ))
+        self._notificacoes().criar_lembrete(ag)  # RF07: lembrete na véspera
         self._confirmar()
         return self.obter(ag.id_agendamento)
 
@@ -117,6 +125,8 @@ class AgendamentoService:
         ag.tipo_servico, ag.data_hora = dados["tipo"], dados["data_hora"]
         ag.duracao_estimada_horas = dados["duracao"]
         self._repo.flush()
+        self._session.refresh(ag, ["cliente"])  # o cliente pode ter mudado
+        self._notificacoes().sincronizar_lembrete(ag)
         self._confirmar()
         return self.obter(id_agendamento)
 
@@ -128,6 +138,7 @@ class AgendamentoService:
         self._exigir_agendado(ag, "cancelado")
         ag.status = StatusAgendamento.CANCELADO
         self._repo.flush()
+        self._notificacoes().cancelar_lembrete(ag, MOTIVO_AGENDAMENTO_CANCELADO)
         self._confirmar()
         return self.obter(id_agendamento)
 
@@ -148,6 +159,7 @@ class AgendamentoService:
             ag.status = StatusAgendamento.CONCLUIDO
             ag.id_ordem_servico = os_.id_ordem_servico
             self._repo.flush()
+            self._notificacoes().cancelar_lembrete(ag, MOTIVO_AGENDAMENTO_CONVERTIDO)
         except Exception:
             self._session.rollback()
             raise
@@ -312,6 +324,9 @@ class AgendamentoService:
             )
             self._session.rollback()
             raise OperacaoNaoPermitidaError(mensagem)
+
+    def _notificacoes(self) -> NotificacaoService:
+        return NotificacaoService(self._session)
 
     def _confirmar(self) -> None:
         try:

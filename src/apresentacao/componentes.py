@@ -12,7 +12,7 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Iterator, Optional
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import QSize, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
@@ -21,6 +21,16 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QWidget,
+)
+
+from src.apresentacao.icones import icone
+from src.apresentacao.tema import (
+    ALTURA_ITEM_MENU,
+    LARANJA,
+    TAMANHO_ICONE_MENU,
+    TEXTO_BARRA,
+    TEXTO_BARRA_ATIVO,
+    TEXTO_BARRA_DESABILITADO,
 )
 
 log = logging.getLogger(__name__)
@@ -196,3 +206,148 @@ class BarraPaginacao(QWidget):
         self._anterior.setEnabled(pagina.tem_anterior)
         self._proxima.setEnabled(pagina.tem_proxima)
         self.setVisible(pagina.total_paginas > 1)
+
+
+# ----------------------------------------------------------------------
+# Senhas (RF10)
+# ----------------------------------------------------------------------
+def campo_senha(placeholder: str = "") -> "QLineEdit":
+    """Campo de senha (caracteres escondidos), até 64 caracteres."""
+    from PyQt6.QtWidgets import QLineEdit
+
+    campo = QLineEdit()
+    campo.setEchoMode(QLineEdit.EchoMode.Password)
+    campo.setMaxLength(64)
+    campo.setPlaceholderText(placeholder)
+    return campo
+
+
+def caixa_mostrar_senha(*campos) -> "QCheckBox":
+    """
+    Caixa "Mostrar senha" que alterna todos os campos de senha do formulário.
+    Texto em vez de só um ícone de olho: mais claro e acessível (Nielsen:
+    reconhecer em vez de lembrar; ajuda a corrigir erro de digitação).
+    """
+    from PyQt6.QtWidgets import QCheckBox, QLineEdit
+
+    caixa = QCheckBox("Mostrar senha")
+
+    def alternar(marcada: bool) -> None:
+        modo = QLineEdit.EchoMode.Normal if marcada else QLineEdit.EchoMode.Password
+        for campo in campos:
+            campo.setEchoMode(modo)
+
+    caixa.toggled.connect(alternar)
+    return caixa
+
+
+# ----------------------------------------------------------------------
+# Barra lateral
+# ----------------------------------------------------------------------
+def iniciais(nome: Optional[str]) -> str:
+    """'Osvaldo Rembold' -> 'OR'; 'Osvaldo' -> 'OS'; vazio -> '?' (avatar do rodapé)."""
+    partes = [p for p in (nome or "").split() if p[0].isalnum()]
+    if not partes:
+        return "?"
+    if len(partes) == 1:
+        return partes[0][:2].upper()
+    return (partes[0][0] + partes[-1][0]).upper()
+
+
+class BotaoComIcone(QPushButton):
+    """Botão com ícone de traço que fica branco quando o mouse passa por cima."""
+
+    def __init__(self, texto: str, nome_icone: str, parent: Optional[QWidget] = None) -> None:
+        super().__init__(texto, parent)
+        self._nome_icone = nome_icone
+        self._mouse_em_cima = False
+        self.setIconSize(QSize(TAMANHO_ICONE_MENU, TAMANHO_ICONE_MENU))
+        self.toggled.connect(lambda _marcado: self._atualizar_icone())
+        self._atualizar_icone()
+
+    def cor_icone(self) -> str:
+        return TEXTO_BARRA_ATIVO if self._mouse_em_cima else TEXTO_BARRA
+
+    def _atualizar_icone(self) -> None:
+        self.setIcon(icone(self._nome_icone, self.cor_icone()))
+
+    def focusInEvent(self, evento) -> None:  # noqa: N802 (nome imposto pelo Qt)
+        """Contorno de foco só quando o foco veio do teclado (Tab / Shift+Tab)."""
+        do_teclado = evento.reason() in (Qt.FocusReason.TabFocusReason, Qt.FocusReason.BacktabFocusReason)
+        destacar(self, "focoTeclado", do_teclado)
+        super().focusInEvent(evento)
+
+    def focusOutEvent(self, evento) -> None:  # noqa: N802
+        destacar(self, "focoTeclado", False)
+        super().focusOutEvent(evento)
+
+    def enterEvent(self, evento) -> None:  # noqa: N802 (nome imposto pelo Qt)
+        self._mouse_em_cima = True
+        self._atualizar_icone()
+        super().enterEvent(evento)
+
+    def leaveEvent(self, evento) -> None:  # noqa: N802
+        self._mouse_em_cima = False
+        self._atualizar_icone()
+        super().leaveEvent(evento)
+
+
+class BotaoMenu(BotaoComIcone):
+    """
+    Item da barra lateral: ícone + rótulo + selo opcional à direita.
+
+    - Selecionável (checkable) dentro de um QButtonGroup exclusivo.
+    - Ícone por estado: cinza claro (normal), branco (mouse em cima), laranja
+      (selecionado); módulo "em breve" em cinza escuro.
+    - Altura mínima de 44 px (lei de Fitts).
+    - Foco só pelo Tab (contorno laranja do tema): o clique do mouse não deixa
+      o contorno preso no item. Espaço ativa o item focado.
+    - "Em breve" fica HABILITADO mas inerte, porque o Qt não mostra tooltip em
+      widget desabilitado; o visual de desabilitado vem do tema.
+    """
+
+    def __init__(self, rotulo: str, nome_icone: str, em_breve: bool = False,
+                 parent: Optional[QWidget] = None) -> None:
+        self.rotulo = rotulo
+        self.em_breve = em_breve
+        # os espaços afastam o texto do ícone (o QPushButton não tem esse ajuste no QSS)
+        super().__init__(f"  {rotulo}", nome_icone, parent)
+        self.setObjectName("itemMenu")
+        self.setProperty("emBreve", em_breve)
+        self.setCheckable(not em_breve)
+        self.setMinimumHeight(ALTURA_ITEM_MENU)
+        self.setAccessibleName(rotulo)
+        if em_breve:
+            self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            self.setToolTip("Disponível em breve")
+        else:
+            self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.selo = QLabel(self)
+        self.selo.setObjectName("seloMenu")
+        self.selo.setFixedHeight(18)
+        self.selo.setMinimumWidth(18)
+        self.selo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.selo.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.selo.hide()
+        linha = QHBoxLayout(self)
+        linha.setContentsMargins(0, 0, 16, 0)
+        linha.addStretch(1)
+        linha.addWidget(self.selo)
+        self._atualizar_icone()
+
+    def cor_icone(self) -> str:
+        if getattr(self, "em_breve", False):
+            return TEXTO_BARRA_DESABILITADO
+        if self.isChecked():
+            return LARANJA
+        return super().cor_icone()
+
+    def definir_selo(self, quantidade: int) -> None:
+        """0 esconde o selo; acima de 99 mostra '99+'."""
+        quantidade = max(0, int(quantidade or 0))
+        self.selo.setText("99+" if quantidade > 99 else str(quantidade))
+        self.selo.setVisible(quantidade > 0)
+        self.setAccessibleName(f"{self.rotulo}, {self.selo.text()} pendentes" if quantidade else self.rotulo)
+

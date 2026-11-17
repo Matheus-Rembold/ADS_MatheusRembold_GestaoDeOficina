@@ -13,6 +13,8 @@ from typing import Callable, List, Optional
 from sqlalchemy.orm import Session
 
 from src.config.database import SessionLocal
+from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
+from src.servico.permissoes import Permissao
 from src.persistencia.models import OrdemServico, StatusOrdemServico, Veiculo
 from src.servico.cliente_service import ClienteService
 from src.servico.veiculo_service import VeiculoService
@@ -86,6 +88,7 @@ class OrdemServicoHistoricoDTO:
         )
 
 
+@protegido(Permissao.VEICULOS)
 class VeiculoController:
     def __init__(self, session_factory: Callable[[], Session] = SessionLocal) -> None:
         self._session_factory = session_factory

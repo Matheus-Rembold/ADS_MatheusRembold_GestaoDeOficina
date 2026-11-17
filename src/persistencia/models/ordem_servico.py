@@ -69,7 +69,9 @@ class StatusOrdemServico(str, enum.Enum):
 _ROTULOS = {
     StatusOrdemServico.ORCAMENTO: "Somente orçamento",
     StatusOrdemServico.ANDAMENTO: "Em andamento",
-    StatusOrdemServico.PRONTO: "Pronto",
+    # Valor interno "pronto"; na tela "Serviço realizado" (16/11/2026): "Pronto"
+    # dava a entender que tudo estava resolvido, inclusive o pagamento.
+    StatusOrdemServico.PRONTO: "Serviço realizado",
     StatusOrdemServico.AGUARDANDO_PAGAMENTO: "Aguardando pagamento",
     StatusOrdemServico.ENTREGUE: "Entregue",
 }
