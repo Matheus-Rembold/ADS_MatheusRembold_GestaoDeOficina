@@ -111,6 +111,12 @@ def testar_funcoes_puras() -> None:
     verificar("lembrete = véspera", data_lembrete(datetime(2026, 11, 20, 8), hoje) == date(2026, 11, 19))
     verificar("lembrete de amanhã = hoje", data_lembrete(datetime(2026, 11, 16, 8), hoje) == hoje)
     verificar("lembrete de hoje = hoje", data_lembrete(datetime(2026, 11, 15, 18), hoje) == hoje)
+    from types import SimpleNamespace as N
+    os_sem_placa = N(id_ordem_servico=7, tipo_servico="Revisão", cliente=N(nome="Ana Souza"),
+                     veiculo=N(modelo="Trator", placa=None))
+    m = ns.mensagem_pos_venda(os_sem_placa)
+    verificar("veículo sem placa: mensagem diz só o modelo, sem '(None)'",
+              "seu Trator saiu daqui" in m and "None" not in m)
 
 
 def main() -> None:

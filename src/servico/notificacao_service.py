@@ -90,15 +90,19 @@ def _primeiro_nome(nome: str) -> str:
     return partes[0].capitalize() if partes else "tudo bem"
 
 
+def _veiculo(v) -> str:
+    """'Gol (ABC1D23)'; sem placa (RF02) fica só 'Gol'."""
+    return f"{v.modelo} ({v.placa})" if v.placa else v.modelo
+
+
 def mensagem_pos_venda(os_: OrdemServico) -> str:
     servico = " ".join((os_.tipo_servico or "").split()).lower() or "manutenção"
     v = os_.veiculo
     return (
         f"Olá, {_primeiro_nome(os_.cliente.nome)}! {_apresentacao()}.\n"
-        f"Faz uma semana que o seu {v.modelo} ({v.placa}) saiu daqui com o serviço de "
+        f"Faz uma semana que o seu {_veiculo(v)} saiu daqui com o serviço de "
         f"{servico} (OS nº {os_.id_ordem_servico}). Está tudo certo com o veículo?\n"
-        f"Se notar qualquer coisa, é só responder esta mensagem. Obrigado pela confiança!\n"
-        
+        f"Se notar qualquer coisa, é só responder esta mensagem. Obrigado pela confiança!"
     )
 
 
@@ -115,7 +119,7 @@ def mensagem_lembrete(ag: Agendamento, hoje: date) -> str:
     return (
         f"Olá, {_primeiro_nome(ag.cliente.nome)}! {_apresentacao()}.\n"
         f"Passando para lembrar do seu agendamento {quando_texto}, às {ag.data_hora:%H:%M}: "
-        f"{' '.join(ag.tipo_servico.split()).lower()} no {v.modelo} ({v.placa}).\n"
+        f"{' '.join(ag.tipo_servico.split()).lower()} no {_veiculo(v)}.\n"
         f"Se não puder vir, é só responder esta mensagem que a gente remarca. Até lá!"
     )
 

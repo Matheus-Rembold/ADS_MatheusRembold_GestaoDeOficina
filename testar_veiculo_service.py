@@ -48,14 +48,13 @@ def esperar_erro(descricao: str, tipo_esperado, funcao) -> None:
 
 
 def limpar(clientes: ClienteService, veiculos: VeiculoService) -> None:
-    for placa in (PLACA_1, PLACA_2):
-        v = veiculos.buscar_por_placa(placa)
-        if v is not None:
-            veiculos.excluir(v.id_veiculo)
     for cpf in (CPF_A, CPF_B):
         c = clientes.buscar_por_cpf(cpf)
-        if c is not None:
-            clientes.excluir(c.id_cliente)
+        if c is None:
+            continue
+        for v in veiculos.listar_por_cliente(c.id_cliente):  # inclui os sem placa
+            veiculos.excluir(v.id_veiculo)
+        clientes.excluir(c.id_cliente)
 
 
 def main() -> None:
@@ -87,6 +86,26 @@ def main() -> None:
                          lambda: servico.cadastrar(ana.id_cliente, "X", "Y", "ZZZ9Z99", ano=1800))
             esperar_erro("cliente inexistente", ValidacaoError,
                          lambda: servico.cadastrar(999999, "X", "Y", "ZZZ9Z99"))
+
+            print("\n--- Placa opcional (20/11/2026) ---")
+            s1 = servico.cadastrar(ana.id_cliente, "Trator", "Valtra", "")
+            verificar("veículo sem placa é aceito (placa vazia vira NULL)", s1.placa is None)
+            s2 = servico.cadastrar(ana.id_cliente, "Hilux 0 km", "Toyota", None)
+            verificar("dois veículos sem placa não conflitam (UNIQUE aceita vários NULL)", s2.placa is None)
+            esperar_erro("placa informada continua validada", ValidacaoError,
+                         lambda: servico.cadastrar(ana.id_cliente, "X", "Y", "AB-12"))
+            s2 = servico.atualizar(s2.id_veiculo, ana.id_cliente, "Hilux", "Toyota", "tst-9z88")
+            verificar("emplacar depois: a placa é preenchida na edição", s2.placa == "TST9Z88")
+            esperar_erro("emplacar com placa de outro veículo é bloqueado", RegistroDuplicadoError,
+                         lambda: servico.atualizar(s1.id_veiculo, ana.id_cliente, "Trator", "Valtra", PLACA_1))
+            session.rollback()
+            s1 = servico.atualizar(s1.id_veiculo, ana.id_cliente, "Trator", "Valtra", "")
+            verificar("editar mantendo sem placa funciona", s1.placa is None)
+            verificar("buscar_por_placa('') não devolve veículo sem placa", servico.buscar_por_placa("") is None)
+            verificar("veículo sem placa aparece na busca pelo modelo",
+                      any(v.id_veiculo == s1.id_veiculo for v in servico.buscar("trator")))
+            servico.excluir(s1.id_veiculo)
+            servico.excluir(s2.id_veiculo)
 
             print("\n--- HU06: atualizar ---")
             v1 = servico.atualizar(v1.id_veiculo, ana.id_cliente, "Onix Plus", "Chevrolet", "TST1A23", ano=2021)

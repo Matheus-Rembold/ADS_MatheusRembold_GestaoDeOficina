@@ -18,6 +18,7 @@ from src.servico.permissoes import Permissao
 from src.persistencia.models import OrdemServico, StatusOrdemServico, Veiculo
 from src.servico.cliente_service import ClienteService
 from src.servico.veiculo_service import VeiculoService
+from src.servico.validadores import exibir_placa
 
 from src.servico.paginacao import POR_PAGINA, Pagina  # noqa: F401 (reexportado para a tela)
 
@@ -42,7 +43,16 @@ class VeiculoDTO:
     marca: str
     ano: Optional[int]
     motor: Optional[str]
-    placa: str
+    placa: Optional[str]  # opcional (RF02, 20/11/2026)
+
+    @property
+    def placa_exibicao(self) -> str:
+        return exibir_placa(self.placa)
+
+    @property
+    def descricao(self) -> str:
+        """'Gol (ABC1D23)' ou 'Gol (sem placa)', para mensagens da tela."""
+        return f"{self.modelo} ({self.placa_exibicao})"
 
     @staticmethod
     def de_modelo(veiculo: Veiculo) -> "VeiculoDTO":
@@ -125,7 +135,7 @@ class VeiculoController:
         id_cliente: Optional[int],
         modelo: str,
         marca: str,
-        placa: str,
+        placa: Optional[str],
         ano: Optional[int] = None,
         motor: Optional[str] = None,
     ) -> VeiculoDTO:
@@ -139,7 +149,7 @@ class VeiculoController:
         id_cliente: Optional[int],
         modelo: str,
         marca: str,
-        placa: str,
+        placa: Optional[str],
         ano: Optional[int] = None,
         motor: Optional[str] = None,
     ) -> VeiculoDTO:

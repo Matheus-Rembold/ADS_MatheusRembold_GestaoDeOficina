@@ -23,7 +23,8 @@ class Veiculo(Base):
     marca: Mapped[str] = mapped_column(String(100), nullable=False)
     ano: Mapped[Optional[int]] = mapped_column(SmallInteger)
     motor: Mapped[Optional[str]] = mapped_column(String(50))
-    placa: Mapped[str] = mapped_column(String(10), nullable=False, unique=True)
+    # Opcional (20/11/2026): o veículo pode ser cadastrado antes de se saber a placa.
+    placa: Mapped[Optional[str]] = mapped_column(String(10), unique=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     # --- Lado "muitos" do relacionamento com Cliente ---

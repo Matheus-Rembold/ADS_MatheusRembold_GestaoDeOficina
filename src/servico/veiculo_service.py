@@ -8,7 +8,8 @@ Mesma divisão de responsabilidades do ClienteService:
 
 Regras deste módulo:
 - todo veículo pertence a UM cliente que precisa existir;
-- placa válida (antiga ABC1234 ou Mercosul ABC1D23) e única;
+- placa OPCIONAL (20/11/2026: o veículo pode ser cadastrado antes de chegar à
+  oficina); quando informada, válida (antiga ABC1234 ou Mercosul ABC1D23) e única;
 - veículo com OS em andamento, OS ou agendamentos não pode ser excluído
   (mesma política do cliente: preservar o histórico da oficina);
 - o dono de um veículo com histórico não pode ser trocado, senão as OS
@@ -51,13 +52,13 @@ class VeiculoService:
         id_cliente: Optional[int],
         modelo: str,
         marca: str,
-        placa: str,
+        placa: Optional[str],
         ano: Optional[int] = None,
         motor: Optional[str] = None,
     ) -> Veiculo:
         dados = self._validar_dados(id_cliente, modelo, marca, placa, ano, motor)
 
-        if self._repo.buscar_por_placa(dados["placa"]) is not None:
+        if dados["placa"] is not None and self._repo.buscar_por_placa(dados["placa"]) is not None:
             raise RegistroDuplicadoError("Já existe um veículo cadastrado com esta placa.")
 
         veiculo = self._repo.adicionar(Veiculo(**dados))
@@ -73,7 +74,7 @@ class VeiculoService:
         id_cliente: Optional[int],
         modelo: str,
         marca: str,
-        placa: str,
+        placa: Optional[str],
         ano: Optional[int] = None,
         motor: Optional[str] = None,
     ) -> Veiculo:
@@ -81,7 +82,7 @@ class VeiculoService:
         dados = self._validar_dados(id_cliente, modelo, marca, placa, ano, motor)
 
         # A placa pode repetir apenas se pertencer ao PRÓPRIO veículo editado.
-        outro = self._repo.buscar_por_placa(dados["placa"])
+        outro = self._repo.buscar_por_placa(dados["placa"]) if dados["placa"] is not None else None
         if outro is not None and outro.id_veiculo != veiculo.id_veiculo:
             raise RegistroDuplicadoError("Já existe outro veículo com esta placa.")
 
@@ -125,7 +126,8 @@ class VeiculoService:
         return veiculo
 
     def buscar_por_placa(self, placa: str) -> Optional[Veiculo]:
-        return self._repo.buscar_por_placa(normalizar_placa(placa))
+        placa_norm = normalizar_placa(placa)
+        return self._repo.buscar_por_placa(placa_norm) if placa_norm else None
 
     def buscar(self, termo: str) -> List[Veiculo]:
         return self._repo.buscar(termo.strip())
@@ -184,10 +186,8 @@ class VeiculoService:
         elif len(marca) > 100:
             erros.append("A marca deve ter no máximo 100 caracteres.")
 
-        placa_norm = normalizar_placa(placa)
-        if not placa_norm:
-            erros.append("A placa é obrigatória.")
-        elif not placa_valida(placa_norm):
+        placa_norm = normalizar_placa(placa) or None  # vazia = veículo sem placa (por enquanto)
+        if placa_norm is not None and not placa_valida(placa_norm):
             erros.append("A placa é inválida. Use o formato ABC-1234 ou ABC1D23 (Mercosul).")
 
         ano_maximo = date.today().year + 1  # modelos do próximo ano já são vendidos
@@ -205,7 +205,7 @@ class VeiculoService:
             "id_cliente": id_cliente,
             "modelo": modelo,
             "marca": marca,
-            "placa": placa_norm,  # sempre salva sem hífen, em maiúsculas
+            "placa": placa_norm,  # sem hífen, em maiúsculas; None se não informada
             "ano": ano,
             "motor": motor,
         }

@@ -35,6 +35,7 @@ from src.servico.notificacao_service import (  # noqa: F401 (reexportadas para a
 )
 from src.servico.paginacao import Pagina  # noqa: F401
 from src.servico.permissoes import Permissao
+from src.servico.validadores import exibir_placa
 
 __all__ = [
     "ABAS", "CANCELADAS", "ENVIADAS", "PARA_ENVIAR", "PROXIMAS",
@@ -92,7 +93,7 @@ def _dto(servico: NotificacaoService, n: Notificacao, hoje: date) -> Notificacao
         nome_cliente=cliente.nome,
         contato=cliente.contato,
         celular=formatar_celular(numero) if numero else None,
-        veiculo=f"{veiculo.modelo} ({veiculo.placa})",
+        veiculo=f"{veiculo.modelo} ({exibir_placa(veiculo.placa)})",
         referencia=referencia,
         servico=servico_txt,
         atrasada=servico.atrasada(n, hoje),

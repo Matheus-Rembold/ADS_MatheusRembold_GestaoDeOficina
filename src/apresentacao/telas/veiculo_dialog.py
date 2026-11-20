@@ -65,7 +65,9 @@ class VeiculoDialog(QDialog):
 
         self._placa = QLineEdit()
         self._placa.setMaxLength(8)
-        self._placa.setPlaceholderText("ABC-1234 ou ABC1D23")
+        # Opcional (20/11/2026): pode cadastrar antes de o veículo chegar e completar depois.
+        self._placa.setPlaceholderText("Opcional: ABC-1234 ou ABC1D23")
+        self._placa.setToolTip("Se ainda não souber a placa, deixe em branco e preencha depois, editando o veículo.")
         self._placa.textEdited.connect(lambda t: self._placa.setText(_mascara_placa(t)))
 
         self._modelo = QLineEdit()
@@ -89,7 +91,7 @@ class VeiculoDialog(QDialog):
             indice = self._cliente.findData(veiculo.id_cliente)
             if indice >= 0:
                 self._cliente.setCurrentIndex(indice)
-            self._placa.setText(_mascara_placa(veiculo.placa))
+            self._placa.setText(_mascara_placa(veiculo.placa or ""))
             self._modelo.setText(veiculo.modelo)
             self._marca.setText(veiculo.marca)
             self._ano.setText("" if veiculo.ano is None else str(veiculo.ano))
@@ -99,7 +101,7 @@ class VeiculoDialog(QDialog):
         formulario.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         formulario.setVerticalSpacing(10)
         formulario.addRow("Cliente *", self._cliente)
-        formulario.addRow("Placa *", self._placa)
+        formulario.addRow("Placa", self._placa)
         formulario.addRow("Modelo *", self._modelo)
         formulario.addRow("Marca *", self._marca)
         formulario.addRow("Ano", self._ano)

@@ -31,11 +31,11 @@ class VeiculoHistoricoDialog(QDialog):
         parent=None,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Histórico — {veiculo.placa}")
+        self.setWindowTitle(f"Histórico — {veiculo.descricao}")
         self.setModal(True)
         self.setMinimumSize(720, 420)
 
-        titulo = QLabel(f"{veiculo.marca} {veiculo.modelo} — {veiculo.placa}")
+        titulo = QLabel(f"{veiculo.marca} {veiculo.modelo} — {veiculo.placa_exibicao}")
         titulo.setObjectName("titulo")
         subtitulo = QLabel(f"Cliente: {veiculo.nome_cliente}")
         subtitulo.setObjectName("subtitulo")

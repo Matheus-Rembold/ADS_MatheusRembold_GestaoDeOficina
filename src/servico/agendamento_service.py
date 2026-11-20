@@ -38,6 +38,7 @@ from src.servico.excecoes import (
     RegistroNaoEncontradoError,
     ValidacaoError,
 )
+from src.servico.validadores import exibir_placa
 from src.servico.notificacao_service import (
     MOTIVO_AGENDAMENTO_CANCELADO,
     MOTIVO_AGENDAMENTO_CONVERTIDO,
@@ -299,7 +300,7 @@ class AgendamentoService:
             )
         if maximo_simultaneos(existentes, inicio, fim) >= LIMITE_SIMULTANEOS:
             detalhe = "; ".join(
-                f"{a.veiculo.placa} {a.data_hora:%H:%M}–{a.termino_previsto:%H:%M}" for a in existentes
+                f"{exibir_placa(a.veiculo.placa)} {a.data_hora:%H:%M}–{a.termino_previsto:%H:%M}" for a in existentes
             )
             self._recusar_se_aberta(
                 f"Horário lotado: já há {LIMITE_SIMULTANEOS} serviços em andamento entre "

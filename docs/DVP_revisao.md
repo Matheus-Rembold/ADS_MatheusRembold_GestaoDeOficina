@@ -74,10 +74,11 @@ O sistema deve impedir a exclusão de um cliente que possua veículos, ordens de
 
 ### RF02 Gerenciar Veículos 🟡
 
-Último item do Fluxo Esperado: acrescentar uma linha:
+Último item do Fluxo Esperado: acrescentar duas linhas:
 
 ```
 O sistema deve impedir a exclusão de um veículo que possua ordens de serviço ou agendamentos vinculados.
+A placa é opcional: o veículo pode ser cadastrado antes de chegar à oficina e a placa ser informada depois, na edição. Quando informada, deve ser válida (padrão antigo ou Mercosul) e única.
 ```
 
 ---

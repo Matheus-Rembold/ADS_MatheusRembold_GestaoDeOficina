@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from src.config.database import SessionLocal
 from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
 from src.servico.permissoes import Permissao
+from src.servico.validadores import exibir_placa
 from src.controle.ordem_servico_controller import (  # noqa: F401  (reexportados para a tela)
     ClienteOpcaoDTO,
     OrdemServicoController,
@@ -74,7 +75,7 @@ class AgendamentoDTO:
             id_cliente=a.id_cliente,
             nome_cliente=a.cliente.nome,
             id_veiculo=a.id_veiculo,
-            placa=a.veiculo.placa,
+            placa=exibir_placa(a.veiculo.placa),
             modelo=a.veiculo.modelo,
             tipo_servico=a.tipo_servico,
             data_hora=a.data_hora,

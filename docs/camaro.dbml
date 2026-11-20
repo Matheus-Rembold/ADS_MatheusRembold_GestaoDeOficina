@@ -24,7 +24,7 @@ Table veiculo {
   marca varchar(100) [not null]
   ano smallint
   motor varchar(50)
-  placa varchar(10) [not null, unique]
+  placa varchar(10) [unique, note: 'opcional (pode ser preenchida depois); única quando informada']
   criado_em timestamp [not null, default: `now()`]
 }
 

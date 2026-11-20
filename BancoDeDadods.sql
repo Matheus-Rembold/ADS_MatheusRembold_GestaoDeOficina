@@ -22,7 +22,9 @@ CREATE TABLE cliente (
 
 -- ------------------------------------------------------------
 -- 2. VEICULO
--- RF02 — cada veículo pertence a um único cliente; placa única
+-- RF02 — cada veículo pertence a um único cliente; placa OPCIONAL
+-- (veículo cadastrado antes de chegar à oficina) e única quando informada:
+-- o UNIQUE do PostgreSQL aceita vários NULL.
 -- ------------------------------------------------------------
 CREATE TABLE veiculo (
     id_veiculo      SERIAL PRIMARY KEY,
@@ -31,7 +33,7 @@ CREATE TABLE veiculo (
     marca           VARCHAR(100) NOT NULL,
     ano             SMALLINT,
     motor           VARCHAR(50),
-    placa           VARCHAR(10) NOT NULL UNIQUE,
+    placa           VARCHAR(10) UNIQUE,
     criado_em       TIMESTAMP NOT NULL DEFAULT NOW()
 );
 

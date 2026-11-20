@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from src.config.database import SessionLocal
 from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
 from src.servico.permissoes import Permissao
+from src.servico.validadores import exibir_placa
 from src.persistencia.models import OrdemServico, StatusOrdemServico
 from src.persistencia.repositories.ordem_servico_repository import OrdemServicoRepository
 from src.servico.ordem_servico_service import (  # noqa: F401 (ResumoSituacao reexportado para a tela)
@@ -105,7 +106,7 @@ class OrdemServicoDTO:
             id_cliente=o.id_cliente,
             nome_cliente=o.cliente.nome,
             id_veiculo=o.id_veiculo,
-            placa=o.veiculo.placa,
+            placa=exibir_placa(o.veiculo.placa),
             modelo=o.veiculo.modelo,
             quilometragem=o.quilometragem,
             descricao_problema=o.descricao_problema,
@@ -157,7 +158,7 @@ class OrdemServicoController:
         with self._session_factory() as session:
             repo = OrdemServicoRepository(session)
             return [
-                VeiculoOpcaoDTO(v.id_veiculo, f"{v.placa} – {v.modelo}")
+                VeiculoOpcaoDTO(v.id_veiculo, f"{exibir_placa(v.placa)} – {v.modelo}")
                 for v in repo.listar_veiculos_do_cliente(id_cliente)
             ]
 

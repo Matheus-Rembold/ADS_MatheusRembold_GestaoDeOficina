@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import (
     QAbstractItemView,
@@ -36,6 +37,7 @@ from src.apresentacao.componentes import (
     preenchendo_tabela,
     texto_contagem,
 )
+from src.apresentacao.tema import TEXTO_SUAVE
 from src.apresentacao.telas.veiculo_dialog import VeiculoDialog
 from src.apresentacao.telas.veiculo_historico_dialog import VeiculoHistoricoDialog
 from src.controle.veiculo_controller import (
@@ -192,7 +194,7 @@ class VeiculosView(QWidget):
         linha_selecionada = -1
         for linha, v in enumerate(veiculos):
             valores = [
-                v.placa,
+                v.placa_exibicao,
                 v.modelo,
                 v.marca,
                 "—" if v.ano is None else str(v.ano),
@@ -201,6 +203,8 @@ class VeiculosView(QWidget):
             ]
             for coluna, valor in enumerate(valores):
                 item = QTableWidgetItem(valor)
+                if coluna == COL_PLACA and v.placa is None:
+                    item.setForeground(QBrush(QColor(TEXTO_SUAVE)))  # "sem placa" em cinza
                 if coluna == COL_PLACA:
                     item.setData(Qt.ItemDataRole.UserRole, v.id_veiculo)
                 self._tabela.setItem(linha, coluna, item)
@@ -242,10 +246,11 @@ class VeiculosView(QWidget):
             # Com paginação o veículo novo poderia cair em outra página: a busca
             # passa a ser a placa dele, então ele aparece sozinho e selecionado.
             self._busca.blockSignals(True)
-            self._busca.setText(dialogo.resultado.placa)
+            # sem placa: busca pelo modelo (ele aparece entre os do mesmo modelo, selecionado)
+            self._busca.setText(dialogo.resultado.placa or dialogo.resultado.modelo)
             self._busca.blockSignals(False)
             self.recarregar(selecionar_id=dialogo.resultado.id_veiculo, pagina=1)
-            self._mostrar_feedback(f"Veículo {dialogo.resultado.placa} cadastrado com sucesso.")
+            self._mostrar_feedback(f"Veículo {dialogo.resultado.descricao} cadastrado com sucesso.")
 
     def _editar(self) -> None:
         id_veiculo = self._id_selecionado()
@@ -264,13 +269,15 @@ class VeiculosView(QWidget):
         dialogo = VeiculoDialog(self._controller, veiculo=veiculo, parent=self)
         if dialogo.exec() == QDialog.DialogCode.Accepted and dialogo.resultado:
             self.recarregar(selecionar_id=dialogo.resultado.id_veiculo)
-            self._mostrar_feedback(f"Veículo {dialogo.resultado.placa} atualizado com sucesso.")
+            self._mostrar_feedback(f"Veículo {dialogo.resultado.descricao} atualizado com sucesso.")
 
     def _excluir(self) -> None:
         id_veiculo = self._id_selecionado()
         if id_veiculo is None:
             return
-        placa = self._tabela.item(self._tabela.currentRow(), COL_PLACA).text()
+        linha = self._tabela.currentRow()
+        placa = (f"{self._tabela.item(linha, COL_MODELO).text()} "
+                 f"({self._tabela.item(linha, COL_PLACA).text()})")  # ex.: "Gol (sem placa)"
 
         if not confirmar(
             self,

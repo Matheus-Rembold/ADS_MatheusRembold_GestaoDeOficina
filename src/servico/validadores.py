@@ -50,6 +50,14 @@ def normalizar_placa(texto: str | None) -> str:
     return re.sub(r"[^A-Za-z0-9]", "", texto or "").upper()
 
 
+SEM_PLACA = "sem placa"
+
+
+def exibir_placa(placa: str | None) -> str:
+    """Placa para mostrar na tela; veículo sem placa (RF02, opcional) vira 'sem placa'."""
+    return placa or SEM_PLACA
+
+
 def placa_valida(placa: str) -> bool:
     """Aceita o padrão antigo (ABC1234) e o Mercosul (ABC1D23). Recebe placa já normalizada."""
     return bool(_PLACA_ANTIGA.match(placa) or _PLACA_MERCOSUL.match(placa))
