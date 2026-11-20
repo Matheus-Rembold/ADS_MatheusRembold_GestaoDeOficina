@@ -224,7 +224,7 @@ O acesso ao sistema deve exigir usuário e senha. A senha deve ser armazenada ap
 
 ### 1.4 RF10 Autenticar Usuário e controlar acesso 🆕 (implementado em 15/11/2026: pode colar)
 
-Requisito novo. Acrescente também: o **UC10** no diagrama de casos de uso, a tabela **usuario** no modelo lógico (já está em `docs/camaro.dbml`) e a linha do histórico de alterações abaixo. Nos stakeholders, o dono e o mecânico passam a ser os dois perfis do sistema.
+Requisito novo. Acrescente também: o **UC10** no diagrama de casos de uso, a tabela **usuario** no modelo lógico (já está em `docs/camaro.dbml`) e a linha do histórico de alterações abaixo. Nos stakeholders, o dono da oficina (perfil Administrador) e os mecânicos (perfil Funcionário) passam a ser os dois perfis do sistema.
 
 **Histórico de alterações:**
 ```
@@ -234,21 +234,21 @@ Requisito novo. Acrescente também: o **UC10** no diagrama de casos de uso, a ta
 **RF10 Autenticar Usuário e Controlar Acesso** (Importância: essencial · Priorização: 1 · Dependência: não se aplica)
 ```
 Problema /Necessidades Identificadas:
-O sistema guarda dados pessoais de clientes e informações financeiras da oficina e é usado tanto pelo dono quanto pelos mecânicos, que não devem ter acesso às mesmas informações (custos, relatórios financeiros, estoque e cadastro de usuários).
+O sistema guarda dados pessoais de clientes e informações financeiras da oficina e é usado tanto pelo administrador quanto pelos funcionários, que não devem ter acesso às mesmas informações (custos, relatórios financeiros, estoque e cadastro de usuários).
 Fluxo Esperado:
 O sistema deve exigir usuário e senha ao ser aberto, antes de exibir qualquer tela.
-Na primeira execução, sem nenhum usuário cadastrado, o sistema deve pedir a criação do primeiro usuário, que é sempre o dono. Não existe senha padrão no sistema.
-O sistema deve possuir dois perfis: dono, com acesso total, e mecânico, com acesso a Clientes, Veículos, Ordens de Serviço, Agendamentos e consulta de Produtos, sem ver custos nem margens.
+Na primeira execução, sem nenhum usuário cadastrado, o sistema deve pedir a criação do primeiro usuário, que é sempre um administrador. Não existe senha padrão no sistema.
+O sistema deve possuir dois perfis: Administrador, com acesso total, e Funcionário, com acesso a Clientes, Veículos, Ordens de Serviço, Agendamentos, Notificações e consulta de Produtos, sem ver custos nem margens.
 A senha deve ser armazenada apenas como hash com sal (bcrypt), nunca em texto (RNF05).
 Em caso de usuário ou senha incorretos, o sistema deve exibir uma mensagem genérica, sem informar qual dos dois está errado.
 Após cinco tentativas erradas seguidas, o usuário deve ficar bloqueado por cinco minutos, com o tempo restante exibido na tela.
-O dono deve poder cadastrar usuários, alterar nome e perfil, ativar ou desativar e redefinir a senha. O sistema deve impedir a desativação ou o rebaixamento do último dono ativo, e ninguém pode desativar ou alterar o próprio perfil.
+O administrador deve poder cadastrar usuários, alterar nome e perfil, ativar ou desativar e redefinir a senha. O sistema deve impedir a desativação ou o rebaixamento do último administrador ativo, e ninguém pode desativar ou alterar o próprio perfil.
 O sistema deve exibir o nome e o perfil de quem está logado e permitir sair, voltando à tela de login.
 ```
 
 **UC10 Autenticar Usuário e Controlar Acesso** — Objetivo:
 ```
-Permitir que apenas usuários cadastrados e ativos acessem o sistema, cada um com as funções permitidas ao seu perfil (dono ou mecânico).
+Permitir que apenas usuários cadastrados e ativos acessem o sistema, cada um com as funções permitidas ao seu perfil (administrador ou funcionário).
 ```
 
 **HU27 – Entrar no sistema**
@@ -260,23 +260,23 @@ Critérios de Aceite: Com usuário e senha corretos, o sistema abre a tela princ
 
 **HU28 – Configurar o primeiro acesso**
 ```
-Descrição: COMO dono da oficina, QUERO criar meu usuário na primeira vez que abro o sistema, PARA não depender de uma senha padrão.
-Regras de Negócio: A configuração inicial só aparece quando não existe nenhum usuário. O primeiro usuário é sempre do perfil dono. A senha deve ter pelo menos 8 caracteres e ser diferente do nome de usuário.
-Critérios de Aceite: O dono é criado e o sistema já abre com ele. Depois disso, a configuração inicial não aparece mais.
+Descrição: COMO administrador da oficina, QUERO criar meu usuário na primeira vez que abro o sistema, PARA não depender de uma senha padrão.
+Regras de Negócio: A configuração inicial só aparece quando não existe nenhum usuário. O primeiro usuário é sempre do perfil Administrador. A senha deve ter pelo menos 8 caracteres e ser diferente do nome de usuário.
+Critérios de Aceite: O administrador é criado e o sistema já abre com ele. Depois disso, a configuração inicial não aparece mais.
 ```
 
 **HU29 – Gerenciar usuários**
 ```
-Descrição: COMO dono, QUERO cadastrar os mecânicos, ativar ou desativar usuários, alterar o perfil e redefinir senhas, PARA controlar quem acessa o sistema.
-Regras de Negócio: Somente o perfil dono acessa a tela de Usuários. O nome de usuário é único. Não é possível desativar nem rebaixar o último dono ativo, e ninguém desativa ou altera o próprio perfil. Redefinir a senha também desbloqueia o usuário.
+Descrição: COMO administrador, QUERO cadastrar os funcionários, ativar ou desativar usuários, alterar o perfil e redefinir senhas, PARA controlar quem acessa o sistema.
+Regras de Negócio: Somente o perfil Administrador acessa a tela de Usuários. O nome de usuário é único. Não é possível desativar nem rebaixar o último administrador ativo, e ninguém desativa ou altera o próprio perfil. Redefinir a senha também desbloqueia o usuário.
 Critérios de Aceite: As alterações aparecem na lista de usuários e passam a valer na próxima ação do usuário afetado. O sistema exibe mensagem clara quando uma operação é recusada.
 ```
 
 **HU30 – Restringir funções por perfil**
 ```
-Descrição: COMO dono, QUERO que o mecânico não acesse relatórios financeiros, estoque, custos dos produtos e cadastro de usuários, PARA proteger as informações do negócio.
-Regras de Negócio: O menu mostra apenas os módulos permitidos ao perfil. Mesmo que uma função restrita seja acionada de outra forma, o sistema recusa a operação. Em Produtos, o mecânico apenas consulta e vê o preço de venda, mas não o custo nem a margem.
-Critérios de Aceite: Logado como mecânico, o menu exibe apenas Clientes, Veículos, Produtos, Ordens de Serviço e Agendamentos, e Produtos não exibe custo, margem nem os botões de cadastro.
+Descrição: COMO administrador, QUERO que o funcionário não acesse relatórios financeiros, estoque, custos dos produtos e cadastro de usuários, PARA proteger as informações do negócio.
+Regras de Negócio: O menu mostra apenas os módulos permitidos ao perfil. Mesmo que uma função restrita seja acionada de outra forma, o sistema recusa a operação. Em Produtos, o funcionário apenas consulta e vê o preço de venda, mas não o custo nem a margem.
+Critérios de Aceite: Logado como funcionário, o menu exibe apenas Clientes, Veículos, Produtos, Ordens de Serviço, Agendamentos e Notificações, e Produtos não exibe custo, margem nem os botões de cadastro.
 ```
 
 **Arquitetura (2.1)** — acrescentar ao parágrafo das regras entre camadas:
@@ -437,7 +437,7 @@ Critérios de aceitação: o cadastro do cliente tem a opção "Aceita receber m
 ### UC07 — HU33 Consultar notificações 🆕 (nova história)
 ```
 Como usuário da oficina, quero ver as notificações separadas em "Para enviar", "Próximas", "Enviadas" e "Canceladas", com busca por cliente ou placa, para saber o que preciso enviar hoje.
-Critérios de aceitação: ao entrar no sistema aparece um aviso com a quantidade de mensagens para enviar; o menu mostra essa quantidade; as atrasadas aparecem marcadas; quando não é possível enviar, o motivo aparece na tela. Dono e mecânico têm acesso.
+Critérios de aceitação: ao entrar no sistema aparece um aviso com a quantidade de mensagens para enviar; o menu mostra essa quantidade; as atrasadas aparecem marcadas; quando não é possível enviar, o motivo aparece na tela. Administrador e funcionário têm acesso.
 ```
 
 ### UC08 — HU20 Consultar ordens disponíveis para faturamento 🔴 (status)

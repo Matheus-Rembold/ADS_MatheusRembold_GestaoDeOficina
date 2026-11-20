@@ -46,8 +46,8 @@ class ConfiguracaoInicialDialog(QDialog):
         titulo = QLabel("Bem-vindo ao Camaro!")
         titulo.setObjectName("titulo")
         explicacao = QLabel(
-            "Este é o primeiro acesso. Crie o usuário do dono da oficina: ele terá acesso "
-            "total e poderá cadastrar os mecânicos depois, na tela Usuários."
+            "Este é o primeiro acesso. Crie o usuário administrador da oficina: ele terá acesso "
+            "total e poderá cadastrar os funcionários depois, na tela Usuários."
         )
         explicacao.setObjectName("subtitulo")
         explicacao.setWordWrap(True)

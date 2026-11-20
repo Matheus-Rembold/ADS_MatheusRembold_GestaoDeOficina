@@ -61,7 +61,7 @@ def validar_dados(nome, login, perfil, erros: List[str]):
     try:
         perfil = PerfilUsuario(perfil)
     except ValueError:
-        erros.append("Escolha o perfil: dono ou mecânico.")
+        erros.append("Escolha o perfil: administrador ou funcionário.")
         perfil = None
     return nome, login, perfil
 
@@ -123,7 +123,7 @@ class UsuarioService:
             if usuario.id_usuario == id_ator:
                 self._recusar("Você não pode alterar o seu próprio perfil.")
             if self._eh_ultimo_dono_ativo(usuario):
-                self._recusar("Não é possível rebaixar o último dono ativo: o sistema ficaria sem dono.")
+                self._recusar("Não é possível rebaixar o último administrador ativo: o sistema ficaria sem administrador.")
         usuario.nome, usuario.perfil = nome, perfil
         self._confirmar()
         return usuario
@@ -135,7 +135,7 @@ class UsuarioService:
             if usuario.id_usuario == id_ator:
                 self._recusar("Você não pode desativar o seu próprio usuário.")
             if self._eh_ultimo_dono_ativo(usuario):
-                self._recusar("Não é possível desativar o último dono ativo: o sistema ficaria sem dono.")
+                self._recusar("Não é possível desativar o último administrador ativo: o sistema ficaria sem administrador.")
         else:  # reativar começa do zero
             usuario.tentativas_falhas, usuario.bloqueado_ate = 0, None
         usuario.ativo = bool(ativo)

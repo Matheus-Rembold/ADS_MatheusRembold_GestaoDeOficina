@@ -86,8 +86,9 @@ class UsuarioDialog(QDialog):
             formulario.addRow("Confirmar *", self._confirmacao)
             formulario.addRow("", caixa_mostrar_senha(self._senha, self._confirmacao))
         if modo == NOVO:
-            dica_texto = (f"Dono: acesso total. Mecânico: Clientes, Veículos, Ordens de Serviço, Agendamentos "
-                          f"e consulta de Produtos. Senha com pelo menos {SENHA_MINIMA} caracteres.")
+            dica_texto = (f"Administrador: acesso total. Funcionário: Clientes, Veículos, Ordens de Serviço, "
+                          f"Agendamentos, Notificações e consulta de Produtos (sem custos). "
+                          f"Senha com pelo menos {SENHA_MINIMA} caracteres.")
 
         dica = QLabel(dica_texto)
         dica.setObjectName("subtitulo")

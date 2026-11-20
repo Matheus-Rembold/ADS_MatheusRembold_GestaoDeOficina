@@ -126,7 +126,7 @@ Table usuario {
   nome varchar(100) [not null]
   login varchar(30) [not null, note: 'minúsculas; único sem diferenciar maiúsculas (uq_usuario_login)']
   senha_hash varchar(60) [not null, note: 'hash bcrypt (custo 12, sal embutido); a senha nunca é guardada']
-  perfil varchar(20) [not null, note: 'dono | mecanico']
+  perfil varchar(20) [not null, note: 'dono | mecanico (na tela: Administrador | Funcionário)']
   ativo boolean [not null, default: true]
   tentativas_falhas int [not null, default: 0, note: '5 falhas seguidas bloqueiam']
   bloqueado_ate timestamp [note: 'bloqueio de 5 minutos']

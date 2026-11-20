@@ -28,7 +28,9 @@ class PerfilUsuario(str, enum.Enum):
 
     @property
     def rotulo(self) -> str:
-        return {"dono": "Dono", "mecanico": "Mecânico"}[self.value]
+        # Na tela: Administrador e Funcionário (decidido em 20/11/2026). O valor
+        # gravado continua "dono"/"mecanico": trocar só o rótulo dispensa migração.
+        return {"dono": "Administrador", "mecanico": "Funcionário"}[self.value]
 
 
 class Usuario(Base):
