@@ -1,0 +1,52 @@
+﻿CAMARO - Gestão de Oficina Mecânica
+Instalação no Windows
+====================================
+
+Conteúdo desta pasta:
+  Camaro.exe          o sistema (a pasta _internal precisa ficar junto dele)
+  BancoDeDados.sql    cria o banco de dados
+  .env.example        modelo da configuração
+  LEIA-ME.txt         este arquivo
+
+
+1) INSTALAR O POSTGRESQL
+   Instale o PostgreSQL 18: https://www.postgresql.org/download/windows/
+   Anote a senha escolhida para o usuário "postgres".
+
+2) CRIAR O BANCO DE DADOS
+   No pgAdmin (instalado junto com o PostgreSQL):
+   a) clique com o botão direito em "Databases" > Create > Database...
+      e crie o banco "camaro_db";
+   b) selecione o camaro_db e abra Tools > Query Tool;
+   c) abra o arquivo BancoDeDados.sql desta pasta e execute (F5).
+
+3) CONFIGURAR
+   Faça uma cópia do arquivo ".env.example" nesta mesma pasta e dê a ela o
+   nome ".env". Abra o .env no Bloco de Notas e preencha:
+      DB_PASSWORD=   a senha do usuário postgres (passo 1)
+      DB_NAME=       camaro_db (ou o nome que você usou no passo 2)
+   Opcional: OFICINA_NOME, OFICINA_ENDERECO, OFICINA_TELEFONE e OFICINA_CNPJ
+   aparecem nas mensagens do WhatsApp e na ordem de serviço impressa.
+   Dica: se o Windows não deixar criar o nome ".env", abra o .env.example no
+   Bloco de Notas, use "Salvar como", digite .env e escolha "Todos os arquivos".
+
+4) ABRIR O SISTEMA
+   Dê dois cliques no Camaro.exe. No primeiro acesso, o sistema pede para
+   criar o usuário ADMINISTRADOR (não existe senha padrão).
+   Se o Windows mostrar "O Windows protegeu o computador", clique em
+   "Mais informações" > "Executar assim mesmo" (o programa não tem assinatura
+   digital paga).
+
+
+CONFERIR A INSTALAÇÃO (opcional)
+   No Prompt de Comando, nesta pasta:  Camaro.exe --verificar
+   Ele testa a conexão com o banco, as telas e a geração de PDF. O resultado
+   fica no log: %LOCALAPPDATA%\Camaro\camaro.log
+
+PROBLEMAS COMUNS
+   "Não foi possível conectar ao banco": confira o .env (senha e nome do
+   banco) e se o serviço do PostgreSQL está rodando (Serviços do Windows).
+   Erros ficam registrados em %LOCALAPPDATA%\Camaro\camaro.log
+
+Trabalho final de Análise e Desenvolvimento de Sistemas - UPF, 2026
+Matheus Rembold - orientador: Prof. Jeangrei Veiga

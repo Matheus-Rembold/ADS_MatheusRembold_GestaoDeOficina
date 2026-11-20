@@ -153,6 +153,25 @@ def verificar() -> int:
 
     passo("relatório, gráficos e exportação PDF/CSV", relatorio_e_exportacao)
 
+    def ordem_servico_em_pdf():
+        """OS impressa/PDF: confere que o QtPrintSupport veio no pacote (só lê o banco)."""
+        from src.apresentacao.documento_os import gerar_pdf
+        from src.controle.ordem_servico_controller import OrdemServicoController
+        controller = OrdemServicoController()
+        pagina = controller.listar_pagina()
+        if not pagina.itens:
+            return "nenhuma OS cadastrada ainda (nada a imprimir)"
+        documento = controller.documento(pagina.itens[0].id_ordem_servico)
+        pdf = Path(tempfile.gettempdir()) / "camaro_verificacao_os.pdf"
+        gerar_pdf(documento, str(pdf))
+        tamanho = pdf.stat().st_size
+        pdf.unlink()
+        if tamanho == 0:
+            raise RuntimeError("PDF da OS vazio")
+        return f"OS nº {documento.os.id_ordem_servico}; PDF {tamanho // 1024} KB"
+
+    passo("ordem de serviço em PDF", ordem_servico_em_pdf)
+
     ok = all(resultados)
     logger.info("=== Resultado: %d/%d passos ok — %s ===", sum(resultados), len(resultados),
                 "TUDO CERTO" if ok else "HÁ FALHAS")

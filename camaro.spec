@@ -5,15 +5,19 @@ Receita do executável do Camaro (PyInstaller, RNF07 - Windows nativo).
 Gerar (raiz do projeto, venv ativo):
     pyinstaller camaro.spec --noconfirm --clean
 
-Resultado: dist/Camaro/Camaro.exe (+ a pasta _internal com as bibliotecas).
-Depois, copie o seu .env para dist/Camaro/ (ao lado do Camaro.exe).
+Resultado (pacote de entrega, 20/11/2026):
+    dist/Camaro/   Camaro.exe + _internal/ + BancoDeDados.sql + .env.example + LEIA-ME.txt
+    dist/Camaro.zip   a mesma pasta compactada, pronta para enviar
+Para testar aqui, copie o seu .env para dist/Camaro/ (ao lado do Camaro.exe);
+ele NUNCA entra no .zip.
 
 Decisões:
 - ONEDIR (pasta), não onefile: abre mais rápido (o onefile descompacta tudo
   numa pasta temporária a cada abertura) e gera menos alarme falso de antivírus.
 - console=False: é um sistema de janelas; erros vão para
   %LOCALAPPDATA%\\Camaro\\camaro.log (ver src/config/ambiente.py).
-- O .env NÃO entra no pacote (tem a senha do banco); só o .env.example vai junto.
+- O .env NÃO entra no pacote (tem a senha do banco); só o .env.example vai junto,
+  ao lado do Camaro.exe, como modelo para quem instala.
 - hiddenimports: o SQLAlchemy carrega o dialeto do PostgreSQL pelo nome
   ("postgresql+psycopg2"), que o PyInstaller não enxerga sozinho.
 """
@@ -21,7 +25,7 @@ Decisões:
 a = Analysis(
     ["src/main.py"],
     pathex=[SPECPATH],  # raiz do projeto: os imports são "from src. ..."
-    datas=[(".env.example", ".")],
+    datas=[],
     hiddenimports=[
         "sqlalchemy.dialects.postgresql.psycopg2",
         "PyQt6.QtCharts",
@@ -69,3 +73,28 @@ coll = COLLECT(
     name="Camaro",
     upx=False,
 )
+
+# ---------------------------------------------------------------------------
+# Pacote de entrega: arquivos de instalação ao lado do Camaro.exe + Camaro.zip
+# ---------------------------------------------------------------------------
+import shutil
+import zipfile
+from pathlib import Path
+
+RAIZ = Path(SPECPATH)
+PASTA = Path(DISTPATH) / "Camaro"
+JUNTO = {
+    RAIZ / "banco" / "BancoDeDados.sql": "BancoDeDados.sql",
+    RAIZ / ".env.example": ".env.example",
+    RAIZ / "docs" / "LEIA-ME-instalacao.txt": "LEIA-ME.txt",
+}
+for origem, nome in JUNTO.items():
+    shutil.copy2(origem, PASTA / nome)
+
+ZIP = Path(DISTPATH) / "Camaro.zip"
+with zipfile.ZipFile(ZIP, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as pacote:
+    for arquivo in sorted(PASTA.rglob("*")):
+        if arquivo.is_file() and arquivo.name.lower() != ".env":  # a senha nunca vai junto
+            pacote.write(arquivo, Path("Camaro") / arquivo.relative_to(PASTA))
+print(f"Pacote de entrega: {ZIP} ({ZIP.stat().st_size / 1_048_576:.1f} MB)")
+

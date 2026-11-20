@@ -127,10 +127,17 @@ python -m src.main --verificar
 pyinstaller camaro.spec --noconfirm --clean
 ```
 
-O resultado é a pasta `dist\Camaro\`, com o `Camaro.exe`. Para usar em outro computador:
-instale o PostgreSQL, crie o banco com `banco/BancoDeDados.sql`, copie a pasta `dist\Camaro\`,
-crie o `.env` ao lado do `Camaro.exe` (a partir do `.env.example`) e rode
-`Camaro.exe --verificar` para conferir a instalação.
+O resultado é o **pacote de entrega**:
+
+```
+dist\Camaro\     Camaro.exe (+ _internal\), BancoDeDados.sql, .env.example e LEIA-ME.txt
+dist\Camaro.zip   a mesma pasta compactada (~37 MB), pronta para enviar
+```
+
+Quem recebe o `.zip` só precisa seguir o `LEIA-ME.txt`: instalar o PostgreSQL, criar o banco com o
+`BancoDeDados.sql`, criar o `.env` a partir do `.env.example` e abrir o `Camaro.exe`. O `.env`
+(com a senha do banco) nunca entra no `.zip`. Para conferir uma instalação:
+`Camaro.exe --verificar` (resultado em `%LOCALAPPDATA%\Camaro\camaro.log`).
 
 ## Algumas decisões de projeto
 
