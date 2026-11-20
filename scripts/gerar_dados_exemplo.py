@@ -3,8 +3,8 @@ Dados de EXEMPLO para testar as telas à mão e ver os relatórios (RF06).
 
 Rode da raiz do projeto, com o venv ativo, num banco recém-criado pelo
 banco/BancoDeDados.sql:
-    python gerar_dados_exemplo.py            # cria 24 meses de movimento (~1 a 2 min)
-    python gerar_dados_exemplo.py --remover  # apaga TODOS os dados de exemplo
+    python -m scripts.gerar_dados_exemplo            # cria 24 meses de movimento (~1 a 2 min)
+    python -m scripts.gerar_dados_exemplo --remover  # apaga TODOS os dados de exemplo
 
 O que é criado (tudo MARCADO, para nunca se misturar com dado real):
 - 50 clientes com " (exemplo)" no nome e 70 veículos (alguns clientes com 2 carros);
@@ -437,7 +437,7 @@ def gerar() -> None:
               f"({recusados} recusados pelo limite da agenda, como na tela). OS recusadas por estoque: {puladas}.")
         print("Notificações (RF07): {enviadas} enviadas, {canceladas} canceladas e {pendentes} pendentes "
               "(pós-venda e lembretes passados), mais os lembretes dos agendamentos futuros.".format(**notif))
-        print(f"Tempo: {time.perf_counter() - t0:.0f} s. Para apagar tudo: python gerar_dados_exemplo.py --remover")
+        print(f"Tempo: {time.perf_counter() - t0:.0f} s. Para apagar tudo: python -m scripts.gerar_dados_exemplo --remover")
 
 
 if __name__ == "__main__":
