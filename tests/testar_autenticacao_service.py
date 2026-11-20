@@ -2,7 +2,7 @@
 Teste do AutenticacaoService e da segurança de senha (RF10) no PostgreSQL real.
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_autenticacao_service.py
+    python -m tests.testar_autenticacao_service
 
 ISOLAMENTO TOTAL: tudo roda dentro de UMA transação que é desfeita no fim
 (join_transaction_mode="create_savepoint": cada commit do serviço vira um

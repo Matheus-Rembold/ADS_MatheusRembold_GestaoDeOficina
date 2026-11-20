@@ -2,7 +2,7 @@
 Teste manual do ClienteService contra o banco real (RF01 - HU01/HU02/HU03).
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_cliente_service.py
+    python -m tests.testar_cliente_service
 
 ATENÇÃO: diferente do teste do repository, o Service FAZ commit. Por isso
 este script cria clientes de teste e os apaga no final (bloco finally).

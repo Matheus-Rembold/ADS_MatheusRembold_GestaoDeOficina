@@ -2,7 +2,7 @@
 Teste do UsuarioService (RF10, tela de Usuários) no PostgreSQL real.
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_usuario_service.py
+    python -m tests.testar_usuario_service
 
 Mesmo isolamento do testar_autenticacao_service.py: tudo numa transação
 desfeita no fim (o banco volta exatamente como estava).

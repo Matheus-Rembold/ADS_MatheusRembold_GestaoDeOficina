@@ -2,7 +2,7 @@
 Teste manual do ProdutoService contra o banco real (RF03 - Gerenciar Produtos).
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_produto_service.py
+    python -m tests.testar_produto_service
 
 PRÉ-REQUISITO: rodar uma vez o script alterar_produto_nome_unico.sql no pgAdmin
 (cria o índice único do nome). Sem ele, só o teste do índice no banco falha.

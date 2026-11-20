@@ -2,7 +2,7 @@
 Teste da paginação das listagens (09/11/2026) contra o banco real.
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_paginacao_service.py
+    python -m tests.testar_paginacao_service
 
 Só LÊ o banco. Em vez de depender de quantos registros existem, compara
 cada listagem paginada com a listagem COMPLETA (sem paginação) do próprio

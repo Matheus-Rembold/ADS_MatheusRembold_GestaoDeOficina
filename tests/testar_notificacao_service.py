@@ -2,7 +2,7 @@
 Teste do RF07 (Notificações pelo WhatsApp) contra o PostgreSQL real.
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_notificacao_service.py
+    python -m tests.testar_notificacao_service
 
 PRÉ-REQUISITO: migrar_notificacao.sql rodado (ou banco criado pelo
 BancoDeDadods.sql atualizado).

@@ -2,7 +2,7 @@
 Teste da OS impressa / em PDF (decidido em 20/11/2026).
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_documento_os.py
+    python -m tests.testar_documento_os
 
 Só LÊ o banco (uma OS do seed). O resto usa um documento montado aqui, sem
 banco: o HTML do papel é uma função pura. O PDF é gravado numa pasta

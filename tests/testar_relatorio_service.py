@@ -2,7 +2,7 @@
 Teste manual do RelatorioService contra o banco real (RF06 - Relatórios).
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_relatorio_service.py
+    python -m tests.testar_relatorio_service
 
 PRÉ-REQUISITO: rodar uma vez o migrar_relatorios.sql (ou criar o banco com o
 BancoDeDadods.sql atualizado). O índice não muda os números; só a velocidade.

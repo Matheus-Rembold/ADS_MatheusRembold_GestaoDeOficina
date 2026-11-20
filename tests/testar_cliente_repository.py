@@ -2,7 +2,7 @@
 Teste manual do ClienteRepository contra o banco real.
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_cliente_repository.py
+    python -m tests.testar_cliente_repository
 
 O script NUNCA faz commit: tudo o que ele insere é desfeito no rollback
 final, então seus dados de teste continuam intactos.

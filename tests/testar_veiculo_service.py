@@ -2,7 +2,7 @@
 Teste manual do VeiculoService contra o banco real (RF02 - HU04/HU05/HU06).
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_veiculo_service.py
+    python -m tests.testar_veiculo_service
 
 ATENÇÃO: o Service FAZ commit. Por isso este script cria um cliente e
 veículos de teste e os apaga no final (bloco finally). Os dados do seed

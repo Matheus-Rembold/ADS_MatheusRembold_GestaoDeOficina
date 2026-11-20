@@ -2,7 +2,7 @@
 Teste manual do MovimentacaoEstoqueService contra o banco real (RF09 - Estoque).
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_movimentacao_service.py
+    python -m tests.testar_movimentacao_service
 
 PRÉ-REQUISITO: rodar uma vez o script migrar_movimentacao_estoque.sql no
 pgAdmin (transforma entrada_estoque em movimentacao_estoque). Sem ele o teste

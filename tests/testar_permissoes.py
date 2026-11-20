@@ -2,7 +2,7 @@
 Teste da AUTORIZAÇÃO (RF10): matriz de permissões + guard dos controllers.
 
 Rode da raiz do projeto, com o venv ativo:
-    python testar_permissoes.py
+    python -m tests.testar_permissoes
 
 Cria dois usuários de teste GRAVADOS (o guard revalida o usuário no banco
 por outra conexão), com login começando em "teste-rf10-", e apaga os dois

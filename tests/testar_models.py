@@ -3,7 +3,7 @@ Script rápido para validar que todos os models e relacionamentos
 foram montados sem erro, sem precisar abrir a interface PyQt6.
 
 Rode da raiz do projeto:
-    python testar_models.py
+    python -m tests.testar_models
 """
 from src.config.database import get_session
 from src.persistencia.models import Cliente, Produto
