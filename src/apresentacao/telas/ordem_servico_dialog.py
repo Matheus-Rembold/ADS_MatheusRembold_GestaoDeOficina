@@ -49,6 +49,7 @@ from src.apresentacao.componentes import (
     formatar_moeda,
     preenchendo_tabela,
 )
+from src.apresentacao.documento_os import BotaoImprimir
 from src.apresentacao.tema import ERRO
 from src.controle.sessao import Permissao, sessao
 from src.controle.ordem_servico_controller import (
@@ -216,6 +217,11 @@ class OrdemServicoDialog(QDialog):
         self._btn_salvar.setDefault(True)
         self._btn_salvar.clicked.connect(self._salvar)
         botoes = QHBoxLayout()
+        if self._os is not None:  # OS já salva: dá para imprimir / gerar PDF daqui também
+            self.btn_imprimir = BotaoImprimir(self._controller, lambda: self._os.id_ordem_servico)
+            self.btn_imprimir.setToolTip("Imprimir ou salvar em PDF a OS como está SALVA "
+                                         "(alterações não salvas não entram)")
+            botoes.addWidget(self.btn_imprimir)
         botoes.addStretch()
         botoes.addWidget(self._btn_cancelar)
         botoes.addWidget(self._btn_salvar)

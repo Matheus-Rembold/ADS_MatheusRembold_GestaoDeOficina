@@ -49,6 +49,7 @@ from src.persistencia.repositories.notificacao_repository import (  # noqa: F401
 from src.servico.excecoes import (
     OperacaoNaoPermitidaError, RegistroNaoEncontradoError, ValidacaoError,
 )
+from src.servico.oficina import dados_da_oficina
 from src.servico.paginacao import POR_PAGINA, Pagina, montar_pagina
 
 DIAS_POS_VENDA = 7
@@ -77,7 +78,7 @@ def data_lembrete(data_hora: datetime, hoje: date) -> date:
 
 
 def nome_da_oficina() -> str:
-    return " ".join((os.getenv("OFICINA_NOME") or "").split())
+    return dados_da_oficina().nome
 
 
 def _apresentacao() -> str:

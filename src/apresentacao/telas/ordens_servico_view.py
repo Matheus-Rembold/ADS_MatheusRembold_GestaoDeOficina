@@ -48,6 +48,7 @@ from src.apresentacao.componentes import (
     preenchendo_tabela,
     texto_contagem,
 )
+from src.apresentacao.documento_os import BotaoImprimir
 from src.apresentacao.telas.ordem_servico_dialog import OrdemServicoDialog
 from src.apresentacao.tema import (
     COR_OS_AGUARDANDO,
@@ -156,9 +157,12 @@ class OrdensServicoView(QWidget):
         self._btn_nova.setObjectName("primario")
         self._btn_abrir = QPushButton("Abrir")
         self._btn_status = QPushButton("Alterar situação  ▾")
+        # Imprimir / PDF da OS selecionada (20/11/2026)
+        self.btn_imprimir = BotaoImprimir(
+            self._controller, lambda: (self._selecionada().id_ordem_servico if self._selecionada() else None))
         self._btn_excluir = QPushButton("Excluir")
         self._btn_excluir.setObjectName("perigo")
-        for b in (self._btn_abrir, self._btn_status, self._btn_excluir):
+        for b in (self._btn_abrir, self._btn_status, self.btn_imprimir, self._btn_excluir):
             b.setEnabled(False)
 
         cabecalho = QHBoxLayout()
@@ -171,6 +175,7 @@ class OrdensServicoView(QWidget):
         cabecalho.addSpacing(12)
         cabecalho.addWidget(self._btn_abrir)
         cabecalho.addWidget(self._btn_status)
+        cabecalho.addWidget(self.btn_imprimir)
         cabecalho.addWidget(self._btn_excluir)
 
         self._busca = QLineEdit()
@@ -344,6 +349,7 @@ class OrdensServicoView(QWidget):
         self._btn_abrir.setEnabled(o is not None)
         self._btn_abrir.setText("Editar" if o is not None and o.status.editavel else "Abrir")
         self._btn_status.setEnabled(o is not None and bool(o.transicoes))
+        self.btn_imprimir.setEnabled(o is not None)
         self._btn_excluir.setEnabled(o is not None and o.status is StatusOrdemServico.ORCAMENTO)
 
     def _mostrar_feedback(self, texto: str) -> None:

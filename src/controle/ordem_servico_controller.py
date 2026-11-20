@@ -17,6 +17,7 @@ from src.config.database import SessionLocal
 from src.controle.sessao import protegido, sessao  # noqa: F401 (RF10: autorização)
 from src.servico.permissoes import Permissao
 from src.servico.validadores import exibir_placa
+from src.servico.oficina import DadosOficina, dados_da_oficina
 from src.persistencia.models import OrdemServico, StatusOrdemServico
 from src.persistencia.repositories.ordem_servico_repository import OrdemServicoRepository
 from src.servico.ordem_servico_service import (  # noqa: F401 (ResumoSituacao reexportado para a tela)
@@ -124,6 +125,42 @@ class OrdemServicoDTO:
 
 
 @dataclass(frozen=True)
+class DocumentoOSDTO:
+    """
+    OS para imprimir ou salvar em PDF (decidido em 20/11/2026). Não tem custo
+    de peça: o papel vai para o cliente e mostra só o preço cobrado.
+    """
+
+    os: OrdemServicoDTO
+    cpf_cliente: str
+    contato_cliente: str
+    endereco_cliente: Optional[str]
+    marca: str
+    ano: Optional[int]
+    oficina: DadosOficina
+    gerado_em: datetime
+
+    @property
+    def eh_orcamento(self) -> bool:
+        return self.os.status is StatusOrdemServico.ORCAMENTO
+
+    @property
+    def titulo(self) -> str:
+        """Orçamento para o cliente aprovar; nas outras situações, Ordem de Serviço."""
+        return "ORÇAMENTO" if self.eh_orcamento else "ORDEM DE SERVIÇO"
+
+    @property
+    def nome_arquivo(self) -> str:
+        """Ex.: 'OS_1035_Zeca_Costa.pdf' (sem acentos nem espaços, seguro no Windows)."""
+        import re
+        import unicodedata
+        cliente = unicodedata.normalize("NFKD", self.os.nome_cliente).encode("ascii", "ignore").decode()
+        cliente = re.sub(r"[^A-Za-z0-9]+", "_", cliente).strip("_")[:40] or "cliente"
+        prefixo = "Orcamento" if self.eh_orcamento else "OS"
+        return f"{prefixo}_{self.os.id_ordem_servico}_{cliente}.pdf"
+
+
+@dataclass(frozen=True)
 class ClienteOpcaoDTO:
     id_cliente: int
     nome: str
@@ -216,6 +253,22 @@ class OrdemServicoController:
     def obter(self, id_os: int) -> OrdemServicoDTO:
         with self._session_factory() as session:
             return OrdemServicoDTO.de_modelo(OrdemServicoService(session).obter(id_os))
+
+    def documento(self, id_os: int) -> "DocumentoOSDTO":
+        """Tudo o que a OS impressa / em PDF precisa (sem custo nem margem)."""
+        with self._session_factory() as session:
+            o = OrdemServicoService(session).obter(id_os)
+            c, v = o.cliente, o.veiculo
+            return DocumentoOSDTO(
+                os=OrdemServicoDTO.de_modelo(o),
+                cpf_cliente=c.cpf,
+                contato_cliente=c.contato,
+                endereco_cliente=c.endereco,
+                marca=v.marca,
+                ano=v.ano,
+                oficina=dados_da_oficina(),
+                gerado_em=datetime.now(),
+            )
 
     def cadastrar(
         self,
