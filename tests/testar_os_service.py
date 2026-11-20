@@ -4,8 +4,8 @@ Teste manual do OrdemServicoService contra o banco real (RF04 - Ordens de Servi�
 Rode da raiz do projeto, com o venv ativo:
     python -m tests.testar_os_service
 
-PRÉ-REQUISITO: rodar uma vez o script migrar_ordem_servico.sql no pgAdmin
-(ou criar o banco com o BancoDeDadods.sql atualizado).
+PRÉ-REQUISITO: rodar uma vez o script banco/migracoes/02_migrar_ordem_servico.sql no pgAdmin
+(ou criar o banco com o banco/BancoDeDados.sql atualizado).
 
 ATENÇÃO: o Service FAZ commit. Por isso este script cria cliente, veículos,
 produtos, nota fiscal e OS de teste, usa só esses dados e, no final (bloco

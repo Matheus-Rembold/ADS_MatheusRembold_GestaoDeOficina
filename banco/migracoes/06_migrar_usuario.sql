@@ -1,9 +1,7 @@
 -- ============================================================
 -- RF10: Login e perfis de usuário (tabela usuario)
 --
--- Rode UMA vez no pgAdmin (Query Tool), no banco JÁ EXISTENTE
--- (depois do migrar_relatorios.sql).
--- Num banco NOVO use o BancoDeDadods.sql atualizado (e NÃO rode este).
+-- Num banco NOVO use o banco/BancoDeDados.sql atualizado (e NÃO rode este).
 --
 -- Não cria nenhum usuário nem senha: na primeira vez que o sistema abrir,
 -- a tela de configuração inicial pede os dados do dono.

@@ -4,8 +4,8 @@ Teste manual do AgendamentoService contra o banco real (RF05 - Agendamentos).
 Rode da raiz do projeto, com o venv ativo:
     python -m tests.testar_agendamento_service
 
-PRÉ-REQUISITO: rodar uma vez o script migrar_agendamento.sql no pgAdmin
-(ou criar o banco com o BancoDeDadods.sql atualizado).
+PRÉ-REQUISITO: rodar uma vez o script banco/migracoes/03_migrar_agendamento.sql no pgAdmin
+(ou criar o banco com o banco/BancoDeDados.sql atualizado).
 
 ATENÇÃO: o Service FAZ commit. Por isso este script cria clientes, veículos,
 agendamentos e OS de teste (em datas bem distantes, para não esbarrar nos seus

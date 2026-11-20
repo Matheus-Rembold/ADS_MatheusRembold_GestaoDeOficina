@@ -1,8 +1,7 @@
 -- ============================================================
 -- RF09: entrada_estoque  ->  movimentacao_estoque (com tipo)
 --
--- Rode UMA vez no pgAdmin (Query Tool), no banco OficinaBd JÁ EXISTENTE.
--- Num banco NOVO use o BancoDeDadods.sql atualizado (e NÃO rode este).
+-- Num banco NOVO use o banco/BancoDeDados.sql atualizado (e NÃO rode este).
 --
 -- Tudo roda numa transação: se qualquer passo falhar, nada é alterado.
 -- As 5 linhas que já existem viram tipo 'compra'.

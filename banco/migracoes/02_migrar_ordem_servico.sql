@@ -1,9 +1,7 @@
 -- ============================================================
 -- RF04: Ordens de Serviço (valores, mão de obra, tipo, status "entregue")
 --
--- Rode UMA vez no pgAdmin (Query Tool), no banco JÁ EXISTENTE
--- (depois do migrar_movimentacao_estoque.sql).
--- Num banco NOVO use o BancoDeDadods.sql atualizado (e NÃO rode este).
+-- Num banco NOVO use o banco/BancoDeDados.sql atualizado (e NÃO rode este).
 --
 -- Tudo roda numa transação: se qualquer passo falhar, nada é alterado.
 -- ============================================================

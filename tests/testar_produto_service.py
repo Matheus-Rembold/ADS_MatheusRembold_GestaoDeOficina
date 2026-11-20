@@ -6,11 +6,11 @@ Rode da raiz do projeto, com o venv ativo:
 
 PRÉ-REQUISITO: rodar uma vez o script alterar_produto_nome_unico.sql no pgAdmin
 (cria o índice único do nome). Sem ele, só o teste do índice no banco falha.
-Para o preço de venda: rodar uma vez o migrar_preco_venda.sql (ou criar o
-banco com o BancoDeDadods.sql atualizado).
+Para o preço de venda: rodar uma vez o banco/migracoes/04_migrar_preco_venda.sql (ou criar o
+banco com o banco/BancoDeDados.sql atualizado).
 
 ATENÇÃO: o Service FAZ commit. Por isso este script cria produtos de teste
-e os apaga no final (bloco finally). Os dados do seed (BancoDeDadods.sql)
+e os apaga no final (bloco finally). Os dados do seed (banco/BancoDeDados.sql)
 só são LIDOS, nunca alterados.
 """
 from decimal import Decimal

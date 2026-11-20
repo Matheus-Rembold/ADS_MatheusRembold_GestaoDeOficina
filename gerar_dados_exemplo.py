@@ -2,7 +2,7 @@
 Dados de EXEMPLO para testar as telas à mão e ver os relatórios (RF06).
 
 Rode da raiz do projeto, com o venv ativo, num banco recém-criado pelo
-BancoDeDadods.sql:
+banco/BancoDeDados.sql:
     python gerar_dados_exemplo.py            # cria 24 meses de movimento (~1 a 2 min)
     python gerar_dados_exemplo.py --remover  # apaga TODOS os dados de exemplo
 

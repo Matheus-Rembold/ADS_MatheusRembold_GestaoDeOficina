@@ -62,7 +62,7 @@ pyinstaller camaro.spec --noconfirm --clean
 O resultado é a pasta `dist\Camaro\` (cerca de 82 MB), com o `Camaro.exe` e a pasta `_internal`.
 Para instalar em outro computador:
 
-1. Instale o PostgreSQL e crie o banco com o `BancoDeDadods.sql` (instalação nova).
+1. Instale o PostgreSQL e crie o banco com o `banco/BancoDeDados.sql` (instalação nova).
 2. Copie a pasta `dist\Camaro\` inteira.
 3. Ao lado do `Camaro.exe`, crie o `.env` a partir de `_internal\.env.example` com os dados do PostgreSQL.
 4. Rode `Camaro.exe --verificar` e confira o resultado no log (`%LOCALAPPDATA%\Camaro\camaro.log`).

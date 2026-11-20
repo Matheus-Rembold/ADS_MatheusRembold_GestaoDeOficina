@@ -6,7 +6,7 @@ Rode da raiz do projeto, com o venv ativo:
 
 ATENÇÃO: o Service FAZ commit. Por isso este script cria um cliente e
 veículos de teste e os apaga no final (bloco finally). Os dados do seed
-(BancoDeDadods.sql) só são LIDOS, nunca alterados.
+(banco/BancoDeDados.sql) só são LIDOS, nunca alterados.
 """
 from src.config.database import engine, get_session
 from src.servico.cliente_service import ClienteService

@@ -1,9 +1,7 @@
 -- ============================================================
 -- RF05: Agendamentos (vínculo com a OS gerada + CHECK da duração)
 --
--- Rode UMA vez no pgAdmin (Query Tool), no banco JÁ EXISTENTE
--- (depois do migrar_ordem_servico.sql).
--- Num banco NOVO use o BancoDeDadods.sql atualizado (e NÃO rode este).
+-- Num banco NOVO use o banco/BancoDeDados.sql atualizado (e NÃO rode este).
 --
 -- Tudo roda numa transação: se qualquer passo falhar, nada é alterado.
 -- ============================================================

@@ -4,8 +4,8 @@ Teste manual do RelatorioService contra o banco real (RF06 - Relatórios).
 Rode da raiz do projeto, com o venv ativo:
     python -m tests.testar_relatorio_service
 
-PRÉ-REQUISITO: rodar uma vez o migrar_relatorios.sql (ou criar o banco com o
-BancoDeDadods.sql atualizado). O índice não muda os números; só a velocidade.
+PRÉ-REQUISITO: rodar uma vez o banco/migracoes/05_migrar_relatorios.sql (ou criar o banco com o
+banco/BancoDeDados.sql atualizado). O índice não muda os números; só a velocidade.
 
 ISOLAMENTO: todos os dados de teste ficam no ANO DE 2001, que nenhum outro
 dado usa (nem o seed, nem os dados de exemplo). Assim as contas abaixo são

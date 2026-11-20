@@ -5,9 +5,7 @@
 -- que se saiba a placa; ela é preenchida depois, editando o veículo.
 -- A placa continua ÚNICA quando informada (o UNIQUE aceita vários NULL).
 --
--- Rode UMA vez no pgAdmin (Query Tool), no banco JÁ EXISTENTE
--- (depois do migrar_notificacao.sql).
--- Num banco NOVO use o BancoDeDadods.sql atualizado (e NÃO rode este).
+-- Num banco NOVO use o banco/BancoDeDados.sql atualizado (e NÃO rode este).
 -- ============================================================
 BEGIN;
 

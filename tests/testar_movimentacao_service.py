@@ -4,13 +4,13 @@ Teste manual do MovimentacaoEstoqueService contra o banco real (RF09 - Estoque).
 Rode da raiz do projeto, com o venv ativo:
     python -m tests.testar_movimentacao_service
 
-PRÉ-REQUISITO: rodar uma vez o script migrar_movimentacao_estoque.sql no
+PRÉ-REQUISITO: rodar uma vez o script banco/migracoes/01_migrar_movimentacao_estoque.sql no
 pgAdmin (transforma entrada_estoque em movimentacao_estoque). Sem ele o teste
 não encontra a tabela.
 
 ATENÇÃO: o Service FAZ commit. Por isso este script cria produtos de teste,
 movimenta só esses produtos e, no final (bloco finally), apaga tudo o que criou.
-Os produtos do seed (BancoDeDadods.sql) nunca são alterados.
+Os produtos do seed (banco/BancoDeDados.sql) nunca são alterados.
 Como o sistema NÃO exclui movimentações, a limpeza deste teste apaga direto
 pela sessão (só aqui, por ser um teste).
 """

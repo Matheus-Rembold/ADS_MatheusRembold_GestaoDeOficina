@@ -1,4 +1,4 @@
-// DER do Camaro — gerado a partir do BancoDeDadods.sql (08/11/2026).
+// DER do Camaro — gerado a partir do banco/BancoDeDados.sql (08/11/2026).
 // Cole em https://dbdiagram.io para gerar a imagem da seção 2.3 do DVP.
 
 Project Camaro {
