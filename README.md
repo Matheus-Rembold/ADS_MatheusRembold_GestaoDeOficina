@@ -1,79 +1,149 @@
-# Camaro — Sistema de Gerenciamento de Oficina Mecânica
+# Camaro — Gestão de Oficina Mecânica
 
-Projeto final da disciplina de Análise e Desenvolvimento de Sistemas — UPF.
+Sistema desktop para Windows que organiza o dia a dia de uma oficina mecânica: clientes,
+veículos, peças e estoque, ordens de serviço, agenda, mensagens pelo WhatsApp e relatórios
+financeiros.
 
-## Arquitetura em camadas
+Trabalho final da disciplina de Análise e Desenvolvimento de Sistemas — Universidade de
+Passo Fundo (UPF), 2026.
+**Autor:** Matheus Rembold · **Orientador:** Prof. Jeangrei Veiga
 
-A estrutura de pastas espelha a arquitetura descrita no DVP (seção 2.1):
+---
+
+## Funcionalidades
+
+| Requisito | Módulo | O que faz |
+|---|---|---|
+| RF01 | Clientes | Cadastro com CPF validado e único; opção de aceitar ou não mensagens (LGPD) |
+| RF02 | Veículos | Veículos de cada cliente (placa opcional) e histórico de ordens de serviço |
+| RF03 | Produtos | Peças com custo, preço de venda automático (custo + 20%) ou manual e margem |
+| RF09 | Estoque | Compras, ajustes, doações, vendas por fora e devoluções; alerta de estoque baixo |
+| RF04 | Ordens de Serviço | Orçamento → em andamento → serviço realizado → aguardando pagamento → entregue; baixa de estoque, painel de situações e **impressão / PDF** |
+| RF05 | Agendamentos | Agenda com no máximo 2 serviços ao mesmo tempo; conversão do agendamento em OS |
+| RF06 | Relatórios | Entradas × saídas, lucro bruto, valores a receber e serviços mais prestados; exportação em CSV e PDF |
+| RF07 | Notificações | Pós-venda 7 dias após a entrega e lembrete na véspera do agendamento, enviados pelo WhatsApp |
+| RF10 | Usuários | Login com senha criptografada (bcrypt), perfis **Administrador** e **Funcionário**, bloqueio após 5 tentativas |
+| RF08 | Nota fiscal | *Trabalho futuro* (combinado com o orientador): aparece como "Em breve" no menu |
+
+## Tecnologias
+
+- **Python 3.12+** e **PyQt6** (interface nativa do Windows) com **PyQt6-Charts** (gráficos)
+- **PostgreSQL 18** em `localhost` (funciona sem internet), acessado com **SQLAlchemy 2**
+- **bcrypt** para as senhas; **PyInstaller** para gerar o executável
+
+## Arquitetura
+
+Arquitetura em camadas. Cada camada só conversa com a camada logo abaixo, então as regras de
+negócio podem ser testadas sem abrir a interface.
+
+```
+Apresentação (telas)  →  Controle  →  Serviço (regras)  →  Persistência (banco)
+                                         ↘ Integração (WhatsApp)
+```
 
 ```
 src/
-├── apresentacao/    # Telas PyQt6 (Camada de Apresentação)
-│   └── telas/
-├── controle/        # Intermediação entre tela e serviço (Camada de Controle)
-├── servico/         # Regras de negócio (Camada de Serviço)
-├── persistencia/     # Acesso a dados via SQLAlchemy (Camada de Persistência)
-│   ├── models/        # Classes ORM (uma por tabela do banco)
-│   └── repositories/  # Padrão Repository — uma classe por entidade
-├── integracao/       # APIs externas: WhatsApp e NF-e/NFS-e (Camada de Integração)
-├── config/          # Configuração de banco e variáveis de ambiente
-└── main.py          # Ponto de entrada da aplicação
-
-tests/               # Testes automatizados (espelha a estrutura de src/)
+├── apresentacao/    telas PyQt6, tema visual, gráficos, PDF e impressão
+├── controle/        ponte entre tela e serviço; sessão do usuário e controle de permissões
+├── servico/         regras de negócio, validações e transações
+├── persistencia/    models (uma classe por tabela) e repositories (consultas)
+├── integracao/      WhatsApp (link wa.me)
+├── config/          .env, conexão com o banco e log
+└── main.py          ponto de entrada (login → janela principal)
+tests/               testes automatizados contra o PostgreSQL + rodar_todos.py
+banco/               BancoDeDados.sql (instalação nova) e migrações numeradas
+scripts/             gerar_dados_exemplo.py
+docs/                DVP (Documento de Visão do Projeto) e modelo do banco (DBML)
+camaro.spec          receita do executável (PyInstaller)
 ```
 
-**Regra de dependência:** cada camada só pode chamar a camada imediatamente
-abaixo dela. `apresentacao` nunca acessa `persistencia` diretamente, por
-exemplo — sempre passa por `controle` e `servico`. Isso mantém a lógica de
-negócio testável sem precisar abrir a interface gráfica..
+## Como instalar e rodar
 
-## Como rodar o ambiente
+**Pré-requisitos:** Windows, Python 3.12 ou mais novo e PostgreSQL 18.
 
 ```bash
-# 1. Criar e ativar o ambiente virtual
+# 1. Ambiente virtual e dependências
 python -m venv venv
-venv\Scripts\activate        # Windows
-venv\Scripts\Activate.ps1
-
-# 2. Instalar dependências
+venv\Scripts\activate
 pip install -r requirements.txt
 
-# 3. Configurar variáveis de ambiente
-copy .env.example .env       # Windows
-cp .env.example .env         # Linux/Mac
-# edite o .env com os dados reais do seu PostgreSQL local (banco OficinaBd)
+# 2. Banco de dados: crie um banco vazio e rode o script de instalação
+createdb camaro_db
+psql -d camaro_db -f banco/BancoDeDados.sql
 
-# 4. Executar a aplicação
+# 3. Configuração: copie o modelo e preencha com os dados do seu PostgreSQL
+copy .env.example .env
+
+# 4. Abrir o sistema
 python -m src.main
+```
 
-# Autodiagnóstico (banco, telas, gráficos e PDF), sem abrir janela
+No **primeiro acesso** o sistema pede para criar o usuário **administrador**; não existe senha
+padrão. Os detalhes do banco (instalação nova × atualização com migrações) estão em
+[`banco/LEIA-ME.md`](banco/LEIA-ME.md).
+
+### Configuração (`.env`)
+
+| Variável | Para que serve |
+|---|---|
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Conexão com o PostgreSQL |
+| `DB_ECHO` | `true` mostra todo o SQL no console (só para depurar) |
+| `OFICINA_NOME` | Nome da oficina nas mensagens do WhatsApp e na OS impressa |
+| `OFICINA_ENDERECO`, `OFICINA_TELEFONE`, `OFICINA_CNPJ` | Cabeçalho da OS impressa / PDF (opcionais) |
+
+O `.env` tem a senha do banco e **não vai para o Git**. O log de erros fica em
+`%LOCALAPPDATA%\Camaro\camaro.log`.
+
+### Dados de exemplo (opcional)
+
+Para ver as telas e os relatórios com volume, o script abaixo cria cerca de dois anos de
+movimento (clientes, OS, estoque, agenda e notificações), todo marcado com "(exemplo)":
+
+```bash
+python -m scripts.gerar_dados_exemplo            # cria (~1 min)
+python -m scripts.gerar_dados_exemplo --remover  # apaga tudo o que criou
+```
+
+## Testes
+
+Os testes rodam contra o PostgreSQL de verdade e limpam o que criam. Para rodar todos e ver o
+placar:
+
+```bash
+python -m tests.rodar_todos
+python -m tests.rodar_todos os notificacao   # só alguns, pelo nome
+```
+
+São 15 testes e mais de 700 verificações das regras de negócio. O autodiagnóstico confere
+conexão, telas, gráficos e geração de PDF sem abrir a janela:
+
+```bash
 python -m src.main --verificar
 ```
 
-O `.env` é lido da raiz do projeto. Para ver todo o SQL no console, use `DB_ECHO=true` no `.env`.
-Erros ficam registrados em `%LOCALAPPDATA%\Camaro\camaro.log`.
-
-## Gerar o executável (Windows)
+## Gerar o executável
 
 ```bash
 pyinstaller camaro.spec --noconfirm --clean
 ```
 
-O resultado é a pasta `dist\Camaro\` (cerca de 82 MB), com o `Camaro.exe` e a pasta `_internal`.
-Para instalar em outro computador:
+O resultado é a pasta `dist\Camaro\`, com o `Camaro.exe`. Para usar em outro computador:
+instale o PostgreSQL, crie o banco com `banco/BancoDeDados.sql`, copie a pasta `dist\Camaro\`,
+crie o `.env` ao lado do `Camaro.exe` (a partir do `.env.example`) e rode
+`Camaro.exe --verificar` para conferir a instalação.
 
-1. Instale o PostgreSQL e crie o banco com o `banco/BancoDeDados.sql` (instalação nova).
-2. Copie a pasta `dist\Camaro\` inteira.
-3. Ao lado do `Camaro.exe`, crie o `.env` a partir de `_internal\.env.example` com os dados do PostgreSQL.
-4. Rode `Camaro.exe --verificar` e confira o resultado no log (`%LOCALAPPDATA%\Camaro\camaro.log`).
-   O código de saída é 0 quando está tudo certo.
-5. Abra o `Camaro.exe`.
+## Algumas decisões de projeto
 
-A receita do build está comentada em `camaro.spec`: modo pasta (onedir), sem console, sem o `.env`
-dentro do pacote e sem as DLLs que o sistema não usa.
+- **PostgreSQL local, e não SQLite:** roda no próprio computador da oficina (funciona sem
+  internet) e permite, no futuro, várias estações usando o mesmo banco.
+- **WhatsApp semiautomático (link wa.me):** o sistema prepara a mensagem e uma pessoa confirma o
+  envio. Não tem custo, usa o WhatsApp da própria oficina e não viola os termos de uso (automatizar
+  o WhatsApp Web pode bloquear o número).
+- **Preço de venda por markup:** custo + 20% (20% de markup = 16,67% de margem sobre a venda).
+- **Nome na tela separado do valor no banco:** por exemplo, a situação gravada como `pronto`
+  aparece como "Serviço realizado". Trocar o texto não exige mudar dados.
+- **Segurança:** senhas só como hash bcrypt; as permissões são conferidas no controle a cada
+  operação, e não apenas escondendo itens do menu.
 
-## Cronograma (seção 3.1 do DVP)
-
-Ver `requirements-and-architecture` — desenvolvimento segue a ordem de
-dependência entre requisitos: RF01 → RF02 → RF03 → RF09 → RF04 → RF05 →
-RF06 → RF07/RF08 → empacotamento final.
+A documentação completa (requisitos, casos de uso, histórias de usuário e modelo do banco)
+está no DVP, em [`docs/`](docs/).
